@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { persist, createJSONStorage } from 'zustand/middleware'
 import type {
-  AppState, Trooper, MissionState, DiceRoll, ApplyAdvancePayload,
+  AppState, Trooper, MissionState, DiceRoll, ApplyAdvancePayload, View,
 } from '../types'
 import { gearByName } from '../data/gear'
 import {
@@ -9,8 +9,6 @@ import {
   defposForResult, momentumForResult, stealthShouldClear,
 } from '../utils/gameRules'
 import { newId } from '../utils/id'
-
-type View = 'barracks' | 'mission' | 'settings'
 
 interface Store extends AppState {
   currentView: View

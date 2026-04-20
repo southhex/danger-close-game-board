@@ -1,5 +1,7 @@
+import { type ComponentType } from 'react'
 import { useStore } from './store'
 import { useMediaQuery } from './hooks/useMediaQuery'
+import type { View } from './types'
 import Barracks from './views/Barracks/Barracks'
 import MissionBoard from './views/MissionBoard/MissionBoard'
 import Settings from './views/Settings/Settings'
@@ -18,7 +20,12 @@ export default function App() {
   const setDice = useStore(s => s.setDiceTrayOpen)
   const isDesktop = useMediaQuery('(min-width: 768px)')
 
-  const CurrentView = view === 'barracks' ? Barracks : view === 'mission' ? MissionBoard : Settings
+  const VIEW_COMPONENTS: Record<View, ComponentType> = {
+    barracks: Barracks,
+    mission: MissionBoard,
+    settings: Settings,
+  }
+  const CurrentView = VIEW_COMPONENTS[view]
 
   return (
     <div className="min-h-screen bg-bg text-ink font-mono flex">

@@ -79,3 +79,5 @@ export interface ApplyAdvancePayload {
   result: AdvanceResult
   trooperOffpos?: Record<string, OffensivePosition>
 }
+
+export type View = 'barracks' | 'mission' | 'settings'
