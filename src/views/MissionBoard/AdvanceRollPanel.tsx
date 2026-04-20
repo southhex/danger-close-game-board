@@ -6,12 +6,12 @@ import {
 import { rollDice } from '../../utils/dice'
 import { newId } from '../../utils/id'
 import MobilityCheckPhase from './MobilityCheckPhase'
-import type { AdvanceResult, OffensivePosition } from '../../types'
+import type { AdvanceResult, OffensivePosition, Trooper } from '../../types'
 
 type Phase =
   | { kind: 'setup' }
   | { kind: 'rolled'; total: number; result: AdvanceResult; dice: number[] }
-  | { kind: 'mobility'; result: AdvanceResult; stealthWasActive: boolean }
+  | { kind: 'mobility'; result: AdvanceResult; stealthWasActive: boolean; troopers: Trooper[] }
 
 export default function AdvanceRollPanel() {
   const mission = useStore(s => s.mission)!
@@ -61,6 +61,7 @@ export default function AdvanceRollPanel() {
       kind: 'mobility',
       result: phase.result,
       stealthWasActive: mission.stealth,
+      troopers: activeTroopers,
     })
   }
 
@@ -72,7 +73,7 @@ export default function AdvanceRollPanel() {
   }
 
   const onAssaultChange = (v: number) => {
-    const clamped = Math.max(0, v)
+    const clamped = Math.max(0, Math.min(3, v))
     setAssaultAmmo(clamped)
     if (clamped > 0 && mission.stealth) setMission({ stealth: false })
   }
@@ -136,7 +137,7 @@ export default function AdvanceRollPanel() {
 
       {phase.kind === 'mobility' && (
         <MobilityCheckPhase
-          troopers={activeTroopers}
+          troopers={phase.troopers}
           result={phase.result}
           stealthWasActive={phase.stealthWasActive}
           onApply={onApplyMobility}
