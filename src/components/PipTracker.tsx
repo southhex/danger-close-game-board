@@ -9,9 +9,10 @@ interface Props {
 
 export default function PipTracker({ value, max, onChange, label, size = 10, color = '#5a9e6e' }: Props) {
   const pips = Array.from({ length: max }, (_, i) => i < value)
-  const toggle = (i: number) => {
-    // Click pip at index i sets value to i+1; clicking the highest filled pip decrements.
-    const next = (i + 1 === value) ? i : i + 1
+  const toggle = (i: number, filled: boolean) => {
+    // clicking a filled pip sets value to that index (clears it and all above)
+    // clicking an empty pip sets value to i+1 (fills up to and including it)
+    const next = filled ? i : i + 1
     onChange(Math.max(0, Math.min(max, next)))
   }
   return (
@@ -19,7 +20,7 @@ export default function PipTracker({ value, max, onChange, label, size = 10, col
       {label && <div className="lbl mb-1 text-[10px]">{label}</div>}
       <div className="flex gap-1">
         {pips.map((filled, i) => (
-          <button key={i} onClick={() => toggle(i)}
+          <button key={i} onClick={() => toggle(i, filled)}
             aria-label={`${label ?? 'pip'} ${i + 1}`}
             style={{
               width: size, height: size,
