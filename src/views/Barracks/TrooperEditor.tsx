@@ -51,7 +51,14 @@ export default function TrooperEditor({ open, trooperId, onClose }: Props) {
   }, [form.armor, form.weapon, form.special_weapon, form.special_gear])
 
   const save = () => {
-    const payload = { ...form, mobility: computedMob }
+    const sw = form.special_weapon ? (gearByName(form.special_weapon)?.max_uses ?? -1) : -1
+    const sg = form.special_gear ? (gearByName(form.special_gear)?.max_uses ?? -1) : -1
+    const payload = {
+      ...form,
+      mobility: computedMob,
+      special_weapon_uses: sw,
+      special_gear_uses: sg,
+    }
     if (trooperId) updateTrooper(trooperId, payload)
     else addTrooper(payload)
     onClose()
