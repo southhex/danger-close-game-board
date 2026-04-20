@@ -66,6 +66,18 @@ function resetTrooperForMission(t: Trooper): Trooper {
   }
 }
 
+function clampTrooper(t: Trooper): Trooper {
+  const swMax = t.special_weapon ? maxUsesFor(t.special_weapon) : -1
+  const sgMax = t.special_gear ? maxUsesFor(t.special_gear) : -1
+  return {
+    ...t,
+    grit: clampGrit(t.grit),
+    ammo: clampAmmo(t.ammo),
+    special_weapon_uses: clampUses(t.special_weapon_uses, swMax),
+    special_gear_uses: clampUses(t.special_gear_uses, sgMax),
+  }
+}
+
 const DICE_HISTORY_CAP = 20
 
 export const useStore = create<Store>()(
@@ -132,11 +144,16 @@ export const useStore = create<Store>()(
         if (!raw || typeof raw !== 'object') throw new Error('Invalid import: not an object')
         const r = raw as Partial<AppState>
         if (!Array.isArray(r.troopers)) throw new Error('Invalid import: missing troopers')
-        set({
-          troopers: r.troopers,
-          mission: r.mission ?? null,
-          diceHistory: Array.isArray(r.diceHistory) ? r.diceHistory : [],
-        })
+        try {
+          set({
+            troopers: r.troopers,
+            mission: r.mission ?? null,
+            diceHistory: Array.isArray(r.diceHistory) ? r.diceHistory : [],
+          })
+        } catch (e) {
+          console.warn('importState: failed to apply imported data', e)
+          throw new Error('Invalid import: data could not be applied')
+        }
       },
 
       exportState: () => {
@@ -151,20 +168,10 @@ export const useStore = create<Store>()(
         troopers: s.troopers,
         mission: s.mission,
         diceHistory: s.diceHistory,
+      // cast required: Zustand's partialize types expect the full Store back,
+      // but we intentionally return a subset — this is the standard workaround
       }) as unknown as Store,
       version: 1,
     },
   ),
 )
-
-function clampTrooper(t: Trooper): Trooper {
-  const swMax = t.special_weapon ? maxUsesFor(t.special_weapon) : -1
-  const sgMax = t.special_gear ? maxUsesFor(t.special_gear) : -1
-  return {
-    ...t,
-    grit: clampGrit(t.grit),
-    ammo: clampAmmo(t.ammo),
-    special_weapon_uses: clampUses(t.special_weapon_uses, swMax),
-    special_gear_uses: clampUses(t.special_gear_uses, sgMax),
-  }
-}

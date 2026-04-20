@@ -1,5 +1,18 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { useStore } from '../src/store'
+import type { Trooper } from '../src/types'
+
+function makeTrooper(overrides: Partial<Omit<Trooper, 'id'>> & { id: string }) {
+  return {
+    name: 'X', fullname: '', callsign: '', active: true, perkpoints: 0,
+    mobility: 4, armor: '', weapon: '', special_weapon: '', special_gear: '',
+    perk: '', notes: '', grit: 3, ammo: 3, status: 'ok' as const,
+    offpos: 'engaged' as const, defpos: 'incover' as const,
+    suppressed: false, def_modifier: 0,
+    special_weapon_uses: -1, special_gear_uses: -1,
+    ...overrides,
+  }
+}
 
 function resetStore() {
   // Clear localStorage if available (jsdom environment)
@@ -30,13 +43,12 @@ describe('store', () => {
 
   it('prepareMission resets active trooper mission-state', () => {
     useStore.setState({
-      troopers: [{
-        id: 'a', name: 'A', fullname: '', callsign: '', active: true, perkpoints: 0,
-        mobility: 4, armor: 'Medium Armor', weapon: 'Assault Rifle',
-        special_weapon: 'Rocket Launcher', special_gear: '', perk: '', notes: '',
+      troopers: [makeTrooper({
+        id: 'a', name: 'A', armor: 'Medium Armor', weapon: 'Assault Rifle',
+        special_weapon: 'Rocket Launcher',
         grit: 0, ammo: 0, status: 'wounded', offpos: 'limited', defpos: 'flanked',
-        suppressed: true, def_modifier: -1, special_weapon_uses: 0, special_gear_uses: -1,
-      }],
+        suppressed: true, def_modifier: -1, special_weapon_uses: 0,
+      })],
     })
     useStore.getState().prepareMission()
     const t = useStore.getState().troopers[0]
@@ -49,13 +61,7 @@ describe('store', () => {
   it('applyAdvanceResult sets defpos and momentum', () => {
     useStore.setState({
       mission: { id: 'm', name: '', sector: { name: '', cover: 1, space: 1, tl: 2, weather: 0 }, momentum: 0, advance_rolls: 0, stealth: true, notes: '' },
-      troopers: [{
-        id: 'a', name: 'A', fullname: '', callsign: '', active: true, perkpoints: 0,
-        mobility: 4, armor: '', weapon: '', special_weapon: '', special_gear: '',
-        perk: '', notes: '', grit: 3, ammo: 3, status: 'ok', offpos: 'engaged',
-        defpos: 'incover', suppressed: false, def_modifier: 0,
-        special_weapon_uses: -1, special_gear_uses: -1,
-      }],
+      troopers: [makeTrooper({ id: 'a', name: 'A' })],
     })
     useStore.getState().applyAdvanceResult({ result: 'ambushed', trooperOffpos: { a: 'limited' } })
     const s = useStore.getState()
