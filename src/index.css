@@ -1,0 +1,19 @@
+@import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html, body, #root {
+  height: 100%;
+  margin: 0;
+  background: #161a17;
+  color: #bbbaa8;
+  font-family: 'Share Tech Mono', ui-monospace, monospace;
+  font-size: 14px;
+}
+
+button { font-family: inherit; }
+
+/* Uppercase label utility */
+.lbl { text-transform: uppercase; letter-spacing: 0.12em; color: #687868; font-size: 11px; }
