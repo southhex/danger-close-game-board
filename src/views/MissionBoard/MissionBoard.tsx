@@ -1,6 +1,7 @@
 import { useStore } from '../../store'
 import SectorMomentumPanel from './SectorMomentumPanel'
 import MissionNotes from './MissionNotes'
+import TrooperCardDock from './TrooperCardDock'
 
 export default function MissionBoard() {
   const mission = useStore(s => s.mission)
@@ -24,8 +25,7 @@ export default function MissionBoard() {
         <SectorMomentumPanel />
         <MissionNotes />
       </div>
-      {/* TrooperCardDock slot — Task 8 */}
-      <div className="sticky bottom-0 bg-surface border-t border-border p-3 lbl">TROOPER DOCK (wip)</div>
+      <TrooperCardDock />
     </div>
   )
 }
