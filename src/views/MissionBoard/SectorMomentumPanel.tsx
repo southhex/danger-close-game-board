@@ -25,7 +25,7 @@ const WEATHER_OPTS = [
   { value: '1', label: '+1 – Advantaged' },
 ]
 
-const MOMENTUM_LABEL: Record<number, string> = {
+const MOMENTUM_LABEL: Record<string, string> = {
   '-3': 'ROUTED', '-2': 'PINNED', '-1': 'LOSING', '0': 'CONTESTED',
   '1': 'GAINING', '2': 'DOMINANT', '3': 'OVERRUNNING',
 }
@@ -62,7 +62,7 @@ export default function SectorMomentumPanel() {
             <button onClick={() => setMission({ momentum: clampMomentum(mission.momentum - 1) })} className="text-muted text-lg leading-none">◀</button>
             <div className="text-center">
               <div className="text-ink text-lg font-bold">{mission.momentum >= 0 ? `+${mission.momentum}` : mission.momentum}</div>
-              <div className="text-[9px] tracking-wider text-neutral mt-0.5">{MOMENTUM_LABEL[mission.momentum]}</div>
+              <div className="text-[9px] tracking-wider text-neutral mt-0.5">{MOMENTUM_LABEL[String(mission.momentum)] ?? ''}</div>
             </div>
             <button onClick={() => setMission({ momentum: clampMomentum(mission.momentum + 1) })} className="text-muted text-lg leading-none">▶</button>
           </div>
