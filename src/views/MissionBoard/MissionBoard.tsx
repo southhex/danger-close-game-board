@@ -2,6 +2,7 @@ import { useStore } from '../../store'
 import SectorMomentumPanel from './SectorMomentumPanel'
 import MissionNotes from './MissionNotes'
 import TrooperCardDock from './TrooperCardDock'
+import AdvanceRollPanel from './AdvanceRollPanel'
 
 export default function MissionBoard() {
   const mission = useStore(s => s.mission)
@@ -20,8 +21,7 @@ export default function MissionBoard() {
   return (
     <div className="flex flex-col h-full">
       <div className="flex-1 overflow-auto p-3 flex flex-col gap-3 pb-[260px]">
-        {/* AdvanceRollPanel slot — Task 9 */}
-        <div className="bg-surface border border-border p-3 lbl">ADVANCE ROLL (wip)</div>
+        <AdvanceRollPanel />
         <SectorMomentumPanel />
         <MissionNotes />
       </div>
