@@ -13,6 +13,7 @@ export function flankingBonus(effMob: number): number {
   return 3
 }
 
+// costs are negative values from GearItem.mobility_cost (e.g. Heavy Armor = -2)
 export function baseMobilityFromCosts(costs: number[]): number {
   return 5 + costs.reduce((acc, c) => acc + c, 0)
 }

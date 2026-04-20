@@ -3,7 +3,7 @@ import {
   effectiveMobility, flankingBonus, advanceModifier, advanceResult,
   momentumForResult, defposForResult, offposFromCheck, mobilityCheck,
   clampMomentum, fortifiedLimit, flankingLimit, canSetDefpos, canSetOffpos,
-  stealthShouldClear, infiltrationPicks, woundCount,
+  stealthShouldClear, infiltrationPicks, woundCount, clampUses,
 } from '../src/utils/gameRules'
 import type { Trooper } from '../src/types'
 
@@ -159,5 +159,15 @@ describe('woundCount', () => {
       mkTrooper({ id: 'd', status: 'wounded', active: false }),
     ]
     expect(woundCount(squad)).toBe(2)
+  })
+})
+
+describe('clampUses', () => {
+  it('passes through -1 unlimited sentinel unchanged', () => {
+    expect(clampUses(-1, -1)).toBe(-1)
+  })
+  it('clamps to max', () => {
+    expect(clampUses(5, 3)).toBe(3)
+    expect(clampUses(0, 3)).toBe(0)
   })
 })

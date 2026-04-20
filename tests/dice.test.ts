@@ -18,4 +18,7 @@ describe('dice', () => {
   it('parseDiceNotation parses d6', () => {
     expect(parseDiceNotation('d6')).toEqual({ count: 1, sides: 6 })
   })
+  it('parseDiceNotation throws on invalid notation', () => {
+    expect(() => parseDiceNotation('abc')).toThrow('Invalid dice notation')
+  })
 })
