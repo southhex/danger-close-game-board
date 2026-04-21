@@ -1,9 +1,15 @@
 import { useMemo, useState, useEffect } from 'react'
-import { Modal, ConfirmDialog, Dropdown } from '../../components'
+import { Modal, ConfirmDialog, Dropdown, Stepper } from '../../components'
 import { gearByName, gearByType } from '../../data/gear'
+import { TAGS } from '../../data/tags'
 import { baseMobilityFromCosts } from '../../utils/gameRules'
 import type { Trooper } from '../../types'
 import { useStore } from '../../store'
+
+const TAG_OPTIONS = [
+  { value: '', label: '— No Tag —' },
+  ...TAGS.map(t => ({ value: t.name, label: t.name })),
+]
 
 interface Props {
   open: boolean
@@ -100,6 +106,14 @@ export default function TrooperEditor({ open, trooperId, onClose }: Props) {
             <input className="w-full bg-bg border border-border text-ink text-xs px-2 py-1 font-mono" value={form.fullname} onChange={e => set('fullname', e.target.value)} />
           </label>
 
+          <Dropdown className="col-span-2" label="TAG" value={form.tag}
+            options={TAG_OPTIONS} onChange={v => set('tag', v)} />
+          {form.tag && (
+            <div className="col-span-2 text-[10px] text-muted -mt-1">
+              {TAGS.find(t => t.name === form.tag)?.description}
+            </div>
+          )}
+
           <label className="col-span-1 flex items-center gap-2 mt-2">
             <input type="checkbox" checked={form.active} onChange={e => set('active', e.target.checked)} />
             <span className="lbl text-[10px]">ACTIVE</span>
@@ -126,6 +140,55 @@ export default function TrooperEditor({ open, trooperId, onClose }: Props) {
           <div className="col-span-2 flex items-center justify-between border-t border-border pt-2 mt-1">
             <div className="lbl text-[10px]">COMPUTED MOBILITY</div>
             <div className="text-ok text-sm">{computedMob}</div>
+          </div>
+
+          <div className="col-span-1">
+            <Stepper label="GRIT MAX" value={form.grit_max}
+              onChange={v => set('grit_max', v)} min={1} max={4} />
+          </div>
+          <div className="col-span-1">
+            <Stepper label="AMMO MAX" value={form.ammo_max}
+              onChange={v => set('ammo_max', v)} min={3} max={4} />
+          </div>
+
+          <div className="col-span-2 border-t border-border pt-2 mt-1">
+            <div className="flex items-center justify-between mb-2">
+              <div className="lbl text-[10px]">PERKS</div>
+              <button
+                type="button"
+                onClick={() => set('perks', [...form.perks, { name: '', description: '' }])}
+                className="text-[10px] text-ok border border-ok px-2 py-0.5">+ ADD</button>
+            </div>
+            {form.perks.length === 0 && (
+              <div className="text-[10px] text-muted italic">No perks.</div>
+            )}
+            {form.perks.map((perk, i) => (
+              <div key={i} className="flex flex-col gap-1 mb-2 border border-border p-2">
+                <div className="flex items-center gap-1">
+                  <input
+                    placeholder="Perk name"
+                    className="flex-1 bg-bg border border-border text-ink text-xs px-2 py-0.5 font-mono"
+                    value={perk.name}
+                    onChange={e => {
+                      const updated = form.perks.map((p, j) => j === i ? { ...p, name: e.target.value } : p)
+                      set('perks', updated)
+                    }} />
+                  <button
+                    type="button"
+                    onClick={() => set('perks', form.perks.filter((_, j) => j !== i))}
+                    className="text-[10px] text-bad border border-bad px-2 py-0.5">×</button>
+                </div>
+                <textarea
+                  rows={2}
+                  placeholder="Description"
+                  className="w-full bg-bg border border-border text-ink text-xs px-2 py-1 font-mono"
+                  value={perk.description}
+                  onChange={e => {
+                    const updated = form.perks.map((p, j) => j === i ? { ...p, description: e.target.value } : p)
+                    set('perks', updated)
+                  }} />
+              </div>
+            ))}
           </div>
 
           <label className="col-span-2">
