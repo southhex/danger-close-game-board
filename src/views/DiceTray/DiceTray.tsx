@@ -10,7 +10,7 @@ export default function DiceTray() {
   const isDesktop = useMediaQuery('(min-width: 768px)')
 
   const panel = isDesktop
-    ? 'fixed top-0 right-0 h-full w-80 z-40 bg-surface border-l border-border flex flex-col shadow-2xl'
+    ? 'w-80 flex-shrink-0 h-full bg-surface border-l border-border flex flex-col overflow-hidden'
     : 'fixed bottom-0 left-0 right-0 z-40 bg-surface border-t border-border flex flex-col shadow-2xl'
 
   return (

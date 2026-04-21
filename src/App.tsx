@@ -39,21 +39,14 @@ export default function App() {
               <div className="text-[9px] mt-1">{n.label}</div>
             </button>
           ))}
-          <div className="flex-1" />
-          <button onClick={() => setDice(true)} className="py-2 text-center text-warn border-t border-border mt-2">
-            <div className="text-lg leading-none">⬡</div>
-            <div className="text-[9px] mt-1">DICE</div>
-          </button>
         </aside>
       )}
 
       <main className="flex-1 min-w-0 flex flex-col">
-        {!isDesktop && (
-          <header className="flex items-center justify-between bg-surface border-b border-border px-3 py-2">
-            <div className="lbl">{NAV.find(n => n.id === view)?.title.toUpperCase()}</div>
-            <button onClick={() => setDice(true)} className="text-warn text-lg leading-none">⬡</button>
-          </header>
-        )}
+        <header className="flex items-center justify-between bg-surface border-b border-border px-3 py-2 flex-shrink-0">
+          <div className="lbl">{NAV.find(n => n.id === view)?.title.toUpperCase()}</div>
+          <button onClick={() => setDice(!diceOpen)} className={`text-lg leading-none ${diceOpen ? 'text-ok' : 'text-warn'}`}>⬡</button>
+        </header>
         <div className="flex-1 overflow-auto">
           <CurrentView />
         </div>
