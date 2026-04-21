@@ -1,3 +1,4 @@
+import { memo, useMemo } from 'react'
 import { Dropdown, PipTracker, Stepper, GearPopover } from '../../components'
 import { STATUS_COLOR } from '../../components/StatusBadge'
 import { gearByName } from '../../data/gear'
@@ -32,7 +33,7 @@ interface Props {
   space: 0 | 1 | 2
 }
 
-export default function TrooperMissionCard({ trooper, squad, cover, space }: Props) {
+const TrooperMissionCard = memo(function TrooperMissionCard({ trooper, squad, cover, space }: Props) {
   const updateTrooper = useStore(s => s.updateTrooper)
   const effMob = effectiveMobility(trooper)
   const flk = flankingBonus(effMob)
@@ -43,14 +44,15 @@ export default function TrooperMissionCard({ trooper, squad, cover, space }: Pro
   const sw = gearByName(trooper.special_weapon)
   const sg = gearByName(trooper.special_gear)
 
-  const offOpts = OFFPOS.map(o => ({
+  const offOpts = useMemo(() => OFFPOS.map(o => ({
     ...o,
     disabled: o.value !== trooper.offpos && !canSetOffpos(trooper, o.value, squad, space),
-  }))
-  const defOpts = DEFPOS.map(o => ({
+  })), [trooper.offpos, trooper, squad, space])
+
+  const defOpts = useMemo(() => DEFPOS.map(o => ({
     ...o,
     disabled: o.value !== trooper.defpos && !canSetDefpos(trooper, o.value, squad, cover),
-  }))
+  })), [trooper.defpos, trooper, squad, cover])
 
   const dim = trooper.status === 'dead' ? 'opacity-50' : ''
 
@@ -130,4 +132,5 @@ export default function TrooperMissionCard({ trooper, squad, cover, space }: Pro
       </div>
     </div>
   )
-}
+})
+export default TrooperMissionCard

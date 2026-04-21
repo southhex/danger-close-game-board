@@ -1,8 +1,10 @@
+import { useMemo } from 'react'
 import { useStore } from '../../store'
 import TrooperMissionCard from './TrooperMissionCard'
 
 export default function TrooperCardDock() {
-  const troopers = useStore(s => s.troopers.filter(t => t.active))
+  const allTroopers = useStore(s => s.troopers)
+  const troopers = useMemo(() => allTroopers.filter(t => t.active), [allTroopers])
   const mission = useStore(s => s.mission)
   if (!mission) return null
 

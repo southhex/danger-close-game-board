@@ -1,11 +1,12 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { useStore } from '../../store'
 import { rollDie } from '../../utils/dice'
 import { effectiveMobility, mobilityCheck } from '../../utils/gameRules'
 import { newId } from '../../utils/id'
 
 export default function MobilityCheckRoll() {
-  const troopers = useStore(s => s.troopers.filter(t => t.active))
+  const allTroopers = useStore(s => s.troopers)
+  const troopers = useMemo(() => allTroopers.filter(t => t.active), [allTroopers])
   const addRoll = useStore(s => s.addRoll)
   const [results, setResults] = useState<Record<string, { roll: number; pass: boolean }>>({})
 

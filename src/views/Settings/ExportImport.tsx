@@ -43,8 +43,8 @@ export default function ExportImport() {
       setError(null)
       importState(pendingRaw)
       setPendingRaw(null)
-    } catch (err: any) {
-      setError(err?.message ?? 'Invalid save file.')
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Invalid save file.')
       setPendingRaw(null)
     }
   }

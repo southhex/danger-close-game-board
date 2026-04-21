@@ -28,7 +28,8 @@ function optionsFor(type: 'weapon' | 'specialweapon' | 'specialequipment' | 'arm
 }
 
 export default function TrooperEditor({ open, trooperId, onClose }: Props) {
-  const existing = useStore(s => trooperId ? s.troopers.find(t => t.id === trooperId) : undefined)
+  const allTroopers = useStore(s => s.troopers)
+  const existing = trooperId ? allTroopers.find(t => t.id === trooperId) : undefined
   const addTrooper = useStore(s => s.addTrooper)
   const updateTrooper = useStore(s => s.updateTrooper)
   const deleteTrooper = useStore(s => s.deleteTrooper)

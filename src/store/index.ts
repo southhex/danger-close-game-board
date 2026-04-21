@@ -149,7 +149,6 @@ export const useStore = create<Store>()(
             diceHistory: Array.isArray(r.diceHistory) ? r.diceHistory : [],
           })
         } catch (e) {
-          console.warn('importState: failed to apply imported data', e)
           throw new Error('Invalid import: data could not be applied')
         }
       },
