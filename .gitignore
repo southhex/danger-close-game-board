@@ -22,3 +22,10 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Tooling
+.claude/
+.superpowers/
+
+# Reference material
+EXAMPLE - dicebag/

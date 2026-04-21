@@ -32,20 +32,29 @@ Design spec: `docs/superpowers/specs/2026-04-19-danger-close-play-aid-design.md`
 
 ```
 src/
-  components/       # Shared UI primitives (PipTracker, Dropdown, Modal, etc.)
+  components/       # Shared UI primitives — barrel export via index.ts
+    PipTracker, Dropdown, Modal, ConfirmDialog, GearPopover, StatusBadge, Stepper
   views/
-    Barracks/       # Squad roster management
-    MissionBoard/   # Active play surface
-    DiceTray/       # Modal dice roller
-  store/            # Zustand store + selectors
-  data/             # Bundled gear/armoury static data
-  hooks/            # Custom hooks (usePersistence, etc.)
-  utils/            # Game rules logic (advance modifier, position constraints)
-  types.ts          # All TypeScript interfaces (Trooper, MissionState, etc.)
+    Barracks/       # TrooperCard, TrooperGrid (inlined), TrooperEditor, Barracks
+    MissionBoard/   # SectorMomentumPanel, MissionNotes, TrooperCardDock,
+                    # TrooperMissionCard, AdvanceRollPanel, MobilityCheckPhase, MissionBoard
+    DiceTray/       # DiceControls, MobilityCheckRoll, RollHistory, DiceTray (modal)
+    Settings/       # ExportImport, Settings
+  store/index.ts    # Zustand store with persist; partialize excludes currentView + diceTrayOpen
+  data/gear.ts      # 21-item static gear catalogue (3 armor, 3 weapons, 8 SW, 7 SE)
+  hooks/
+    useMediaQuery.ts
+  utils/
+    gameRules.ts    # Pure functions — all game logic lives here, never in components
+    dice.ts         # rollDie, rollDice
+    id.ts           # newId() — crypto.randomUUID() with fallback
+  types.ts          # All TS interfaces: View, Trooper, GearItem, MissionState, AppState, etc.
+  App.tsx           # Shell: desktop sidebar + mobile bottom tabs + DiceTray modal
 docs/
   superpowers/
     specs/          # Design docs
     plans/          # Implementation plans
+tests/              # Vitest unit tests (gameRules, dice, store)
 ```
 
 ---
@@ -84,8 +93,9 @@ All in `src/utils/gameRules.ts` — never inlined in components.
 
 **Advance roll modifier:**
 ```
-modifier = −floor(advance_rolls / 3) − wound_count + weather + (−sector.tl) + (stealth ? 3 : 0) + assault_ammo
+modifier = −floor(advance_rolls / 3) − wound_count + weather + (−sector.tl) + (stealth ? 3 : 0) + assault_ammo + drone_bonus
 ```
+`drone_bonus` = 1 if any active trooper carries Drone Gear (does not stack), else 0.
 
 **Advance result table (SRD v0.96.6):**
 ```
@@ -123,8 +133,28 @@ Violations: disable option in dropdown, never silently correct.
 - Monospace font everywhere. Labels uppercase with letter-spacing.
 - Minimal size hierarchy — use weight and colour for emphasis, not font size.
 - Mobile-first. Mission board trooper cards scroll horizontally with snap, never wrap.
-- State changes are immediate (no submit patterns) except: Trooper Editor saves, and destructive confirmations (mission reset, delete trooper, import overwrite).
+- State changes are immediate (no submit patterns) except: Trooper Editor saves, and destructive confirmations (mission reset, delete trooper, import overwrite, apply advance result).
 - No gradients, no decorative imagery.
+- `ConfirmDialog` tones: `tone="danger"` (red) for DELETE/RESET/OVERWRITE; `tone="default"` (amber) for apply/confirm actions.
+
+---
+
+## Critical Coding Patterns
+
+**Zustand selectors must never return new object/array references.** Calling `.filter()`, `.map()`, or `.slice()` inside a selector causes infinite re-render loops:
+
+```ts
+// ❌ WRONG — creates new array on every render → infinite loop
+const troopers = useStore(s => s.troopers.filter(t => t.active))
+
+// ✅ CORRECT — select stable reference, filter in component body
+const allTroopers = useStore(s => s.troopers)
+const troopers = allTroopers.filter(t => t.active)
+```
+
+**Never use `useStore.getState()` inside React components.** Use selector hooks: `useStore(s => s.action)`.
+
+**Trooper Editor save:** Only reset `special_weapon_uses` / `special_gear_uses` when the gear selection actually changed — preserves in-mission uses on unrelated edits.
 
 ---
 
