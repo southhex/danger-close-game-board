@@ -1,3 +1,5 @@
+import { TextPopover } from '../../components'
+import { tagByName } from '../../data/tags'
 import type { Trooper } from '../../types'
 
 interface Props {
@@ -6,6 +8,8 @@ interface Props {
 }
 
 export default function TrooperCard({ trooper, onClick }: Props) {
+  const tagData = trooper.tag ? tagByName(trooper.tag) : undefined
+
   return (
     <button onClick={onClick}
       className={`text-left bg-surface border border-border p-3 flex flex-col gap-1 ${trooper.active ? '' : 'opacity-50'}`}>
@@ -23,6 +27,24 @@ export default function TrooperCard({ trooper, onClick }: Props) {
         <span>PERK {trooper.perkpoints}</span>
         {!trooper.active && <span className="text-bad">INACTIVE</span>}
       </div>
+      {(tagData || trooper.perks.length > 0) && (
+        <div className="flex flex-wrap gap-1 mt-1">
+          {tagData && (
+            <TextPopover title={tagData.name} body={tagData.description}>
+              <span className="text-[9px] border border-border px-1 text-muted uppercase tracking-wider">
+                {tagData.name}
+              </span>
+            </TextPopover>
+          )}
+          {trooper.perks.map((perk, i) => (
+            <TextPopover key={i} title={perk.name} body={perk.description || 'No description.'}>
+              <span className="text-[9px] border border-border px-1 text-muted uppercase tracking-wider">
+                {perk.name}
+              </span>
+            </TextPopover>
+          ))}
+        </div>
+      )}
     </button>
   )
 }
