@@ -6,8 +6,8 @@ function makeTrooper(overrides: Partial<Omit<Trooper, 'id'>> & { id: string }) {
   return {
     name: 'X', fullname: '', callsign: '', active: true, perkpoints: 0,
     mobility: 4, armor: '', weapon: '', special_weapon: '', special_gear: '',
-    perk: '', notes: '', grit: 3, ammo: 3, status: 'ok' as const,
-    offpos: 'engaged' as const, defpos: 'incover' as const,
+    tag: '', perks: [], notes: '', grit: 3, grit_max: 3, ammo: 3, ammo_max: 3,
+    status: 'ok' as const, offpos: 'engaged' as const, defpos: 'incover' as const,
     suppressed: false, def_modifier: 0,
     special_weapon_uses: -1, special_gear_uses: -1,
     ...overrides,
@@ -32,8 +32,9 @@ describe('store', () => {
     useStore.getState().addTrooper({
       name: 'Warden', fullname: '', callsign: '', active: true, perkpoints: 0,
       mobility: 4, armor: 'Medium Armor', weapon: 'Assault Rifle',
-      special_weapon: '', special_gear: '', perk: '', notes: '',
-      grit: 3, ammo: 3, status: 'ok', offpos: 'engaged', defpos: 'incover',
+      special_weapon: '', special_gear: '', tag: '', perks: [], notes: '',
+      grit: 3, grit_max: 3, ammo: 3, ammo_max: 3,
+      status: 'ok', offpos: 'engaged', defpos: 'incover',
       suppressed: false, def_modifier: 0, special_weapon_uses: -1, special_gear_uses: -1,
     })
     const t = useStore.getState().troopers[0]

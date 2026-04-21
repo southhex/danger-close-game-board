@@ -83,8 +83,8 @@ export function mobilityCheck(effMob: number, roll: number): boolean {
 export function clampMomentum(v: number): number {
   return Math.max(-3, Math.min(3, v))
 }
-export function clampGrit(v: number): number { return Math.max(0, Math.min(3, v)) }
-export function clampAmmo(v: number): number { return Math.max(0, Math.min(3, v)) }
+export function clampGrit(v: number, max = 3): number { return Math.max(0, Math.min(max, v)) }
+export function clampAmmo(v: number, max = 3): number { return Math.max(0, Math.min(max, v)) }
 export function clampUses(v: number, max: number): number {
   if (max < 0) return max
   return Math.max(0, Math.min(max, v))

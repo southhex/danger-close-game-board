@@ -52,8 +52,8 @@ function maxUsesFor(gearName: string): number {
 function resetTrooperForMission(t: Trooper): Trooper {
   return {
     ...t,
-    grit: 3,
-    ammo: 3,
+    grit: t.grit_max,
+    ammo: t.ammo_max,
     status: 'ok',
     offpos: 'engaged',
     defpos: 'incover',
@@ -69,8 +69,8 @@ function clampTrooper(t: Trooper): Trooper {
   const sgMax = t.special_gear ? maxUsesFor(t.special_gear) : -1
   return {
     ...t,
-    grit: clampGrit(t.grit),
-    ammo: clampAmmo(t.ammo),
+    grit: clampGrit(t.grit, t.grit_max),
+    ammo: clampAmmo(t.ammo, t.ammo_max),
     special_weapon_uses: clampUses(t.special_weapon_uses, swMax),
     special_gear_uses: clampUses(t.special_gear_uses, sgMax),
   }
@@ -160,6 +160,24 @@ export const useStore = create<Store>()(
     }),
     {
       name: 'danger-close-app-state',
+      version: 1,
+      migrate: (persistedState: unknown, version: number) => {
+        if (version < 1) {
+          const state = persistedState as Record<string, unknown>
+          if (Array.isArray(state.troopers)) {
+            state.troopers = (state.troopers as Record<string, unknown>[]).map(t => ({
+              ...t,
+              tag: t.tag ?? '',
+              grit_max: t.grit_max ?? 3,
+              ammo_max: t.ammo_max ?? 3,
+              perks: t.perks ?? (t.perk ? [{ name: t.perk, description: '' }] : []),
+              perk: undefined,
+            }))
+          }
+          return state
+        }
+        return persistedState as Record<string, unknown>
+      },
       storage: createJSONStorage(() => localStorage),
       partialize: (s) => ({
         troopers: s.troopers,
@@ -168,7 +186,6 @@ export const useStore = create<Store>()(
       // cast required: Zustand's partialize types expect the full Store back,
       // but we intentionally return a subset — this is the standard workaround
       }) as unknown as Store,
-      version: 1,
     },
   ),
 )

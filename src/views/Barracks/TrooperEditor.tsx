@@ -14,8 +14,9 @@ interface Props {
 const EMPTY: Omit<Trooper, 'id'> = {
   name: '', fullname: '', callsign: '', active: true, perkpoints: 0,
   mobility: 5, armor: 'Medium Armor', weapon: 'Assault Rifle',
-  special_weapon: '', special_gear: '', perk: '', notes: '',
-  grit: 3, ammo: 3, status: 'ok', offpos: 'engaged', defpos: 'incover',
+  special_weapon: '', special_gear: '', tag: '', perks: [], notes: '',
+  grit: 1, grit_max: 1, ammo: 3, ammo_max: 3,
+  status: 'ok', offpos: 'engaged', defpos: 'incover',
   suppressed: false, def_modifier: 0, special_weapon_uses: -1, special_gear_uses: -1,
 }
 
@@ -127,10 +128,6 @@ export default function TrooperEditor({ open, trooperId, onClose }: Props) {
             <div className="text-ok text-sm">{computedMob}</div>
           </div>
 
-          <label className="col-span-2">
-            <div className="lbl text-[10px] mb-1">PERK</div>
-            <input className="w-full bg-bg border border-border text-ink text-xs px-2 py-1 font-mono" value={form.perk} onChange={e => set('perk', e.target.value)} />
-          </label>
           <label className="col-span-2">
             <div className="lbl text-[10px] mb-1">NOTES</div>
             <textarea rows={3} className="w-full bg-bg border border-border text-ink text-xs px-2 py-1 font-mono" value={form.notes} onChange={e => set('notes', e.target.value)} />

@@ -4,6 +4,12 @@ export type DefensivePosition = 'flanked' | 'incover' | 'fortified'
 export type GearType = 'weapon' | 'specialweapon' | 'specialequipment' | 'armor'
 export type AdvanceResult = 'ambushed' | 'spotted' | 'surprise' | 'overwhelm'
 
+export interface RollTableEntry {
+  min: number
+  max: number
+  result: string
+}
+
 export interface GearItem {
   name: string
   geartype: GearType
@@ -12,6 +18,15 @@ export interface GearItem {
   mobility_cost: number   // subtracted from 5
   reqcost: number
   max_uses: number        // -1 = unlimited
+  roll_table?: {
+    sides: number
+    entries: RollTableEntry[]
+  }
+}
+
+export interface Perk {
+  name: string
+  description: string
 }
 
 export interface Trooper {
@@ -26,12 +41,15 @@ export interface Trooper {
   weapon: string
   special_weapon: string
   special_gear: string
-  perk: string
+  tag: string              // '' = no tag
+  perks: Perk[]
   notes: string
 
   // Mission-state
   grit: number
+  grit_max: number        // 1–4, default 1 for new troopers
   ammo: number
+  ammo_max: number        // 3–4, default 3
   status: TrooperStatus
   offpos: OffensivePosition
   defpos: DefensivePosition
