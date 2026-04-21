@@ -43,7 +43,7 @@ export default function App() {
       )}
 
       <main className="flex-1 min-w-0 flex flex-col">
-        <header className="flex items-center justify-between bg-surface border-b border-border px-3 py-2 flex-shrink-0">
+        <header className="flex items-center justify-between bg-surface border-b border-border px-4 py-3 flex-shrink-0">
           <div className="lbl">{NAV.find(n => n.id === view)?.title.toUpperCase()}</div>
           <button onClick={() => setDice(!diceOpen)} className={`text-lg leading-none ${diceOpen ? 'text-ok' : 'text-warn'}`}>⬡</button>
         </header>

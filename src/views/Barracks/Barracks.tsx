@@ -18,7 +18,6 @@ export default function Barracks() {
   return (
     <div className="p-4">
       <div className="flex items-center justify-between mb-4">
-        <div className="lbl">BARRACKS</div>
         <div className="flex gap-2">
           <button onClick={openNew} className="text-[11px] text-ok border border-ok px-3 py-1">+ TROOPER</button>
           <button onClick={() => setConfirmPrep(true)}
