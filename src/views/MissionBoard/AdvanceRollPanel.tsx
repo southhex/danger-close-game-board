@@ -118,7 +118,7 @@ export default function AdvanceRollPanel() {
           <div className="text-[10px] text-muted italic mb-2">
             Fatigue {mod.fatigue} · Wounds {mod.wounds} · Weather {mod.weather >= 0 ? `+${mod.weather}` : mod.weather}
             {' '}· TL {mod.tl} · Stealth {mod.stealth >= 0 ? `+${mod.stealth}` : mod.stealth}
-            {' '}· Assault +{mod.assault} · Drone {mod.drone >= 0 ? `+${mod.drone}` : mod.drone}
+            {' '}· Assault +{mod.assault}{droneBonus > 0 && ` · Drone +${mod.drone}`}
             {' '}= <span className={mod.total < 0 ? 'text-bad' : 'text-ok'}>{mod.total >= 0 ? `+${mod.total}` : mod.total}</span>
           </div>
 

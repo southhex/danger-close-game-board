@@ -48,6 +48,11 @@ describe('advanceModifier', () => {
     // fatigue=-1, wounds=-1, weather=-1, tl=-2, stealth=+3, assault=+2, drone=0
     expect(m.total).toBe(0)
   })
+  it('droneBonus adds to total', () => {
+    const m = advanceModifier({ advanceRolls: 0, wounds: 0, weather: 0, tl: 0, stealth: false, assaultAmmo: 0, droneBonus: 1 })
+    expect(m.drone).toBe(1)
+    expect(m.total).toBe(1)
+  })
 })
 
 describe('advanceResult table', () => {
