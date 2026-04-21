@@ -1,4 +1,5 @@
 import { useStore } from '../../store'
+import { useMediaQuery } from '../../hooks/useMediaQuery'
 import DiceControls from './DiceControls'
 import MobilityCheckRoll from './MobilityCheckRoll'
 import RollHistory from './RollHistory'
@@ -6,11 +7,19 @@ import RollHistory from './RollHistory'
 export default function DiceTray() {
   const setDiceTrayOpen = useStore(s => s.setDiceTrayOpen)
   const close = () => setDiceTrayOpen(false)
+  const isDesktop = useMediaQuery('(min-width: 768px)')
+
+  const panel = isDesktop
+    ? 'fixed top-0 right-0 h-full w-80 z-40 bg-surface border-l border-border flex flex-col shadow-2xl'
+    : 'fixed bottom-0 left-0 right-0 z-40 bg-surface border-t border-border flex flex-col shadow-2xl'
+
   return (
-    <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-0 md:p-4" onClick={close}>
-      <div className="bg-surface border border-border w-full h-full md:w-[min(90vw,480px)] md:h-auto md:max-h-[90vh] flex flex-col"
-        onClick={e => e.stopPropagation()}>
-        <div className="flex justify-between items-center px-4 py-3 border-b border-border">
+    <>
+      {!isDesktop && (
+        <div className="fixed inset-0 z-30 bg-black/40" onClick={close} />
+      )}
+      <div className={panel} style={isDesktop ? undefined : { maxHeight: '65vh' }}>
+        <div className="flex justify-between items-center px-4 py-3 border-b border-border flex-shrink-0">
           <div className="lbl">DICE TRAY</div>
           <button onClick={close} aria-label="Close dice tray" className="text-muted text-sm">×</button>
         </div>
@@ -25,6 +34,6 @@ export default function DiceTray() {
           </div>
         </div>
       </div>
-    </div>
+    </>
   )
 }
