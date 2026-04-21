@@ -3,7 +3,7 @@ import {
   effectiveMobility, flankingBonus, advanceModifier, advanceResult,
   momentumForResult, defposForResult, offposFromCheck, mobilityCheck,
   clampMomentum, fortifiedLimit, flankingLimit, canSetDefpos, canSetOffpos,
-  stealthShouldClear, infiltrationPicks, woundCount, clampUses,
+  stealthShouldClear, infiltrationPicks, woundCount, clampUses, lookupRollTable,
 } from '../src/utils/gameRules'
 import type { Trooper } from '../src/types'
 
@@ -174,5 +174,28 @@ describe('clampUses', () => {
   it('clamps to max', () => {
     expect(clampUses(5, 3)).toBe(3)
     expect(clampUses(0, 3)).toBe(0)
+  })
+})
+
+describe('lookupRollTable', () => {
+  const plasmaEntries = [
+    { min: 1, max: 1, result: '+2 Injury — weapon destroyed' },
+    { min: 2, max: 3, result: '+1 Injury, +1 ATK' },
+    { min: 4, max: 5, result: '+2 ATK or 1 Hit (Hard Target)' },
+    { min: 6, max: 6, result: '+3 ATK or 2 Hits (Hard Target)' },
+  ]
+
+  it('returns correct result for each range boundary', () => {
+    expect(lookupRollTable(plasmaEntries, 1)).toBe('+2 Injury — weapon destroyed')
+    expect(lookupRollTable(plasmaEntries, 2)).toBe('+1 Injury, +1 ATK')
+    expect(lookupRollTable(plasmaEntries, 3)).toBe('+1 Injury, +1 ATK')
+    expect(lookupRollTable(plasmaEntries, 4)).toBe('+2 ATK or 1 Hit (Hard Target)')
+    expect(lookupRollTable(plasmaEntries, 5)).toBe('+2 ATK or 1 Hit (Hard Target)')
+    expect(lookupRollTable(plasmaEntries, 6)).toBe('+3 ATK or 2 Hits (Hard Target)')
+  })
+
+  it('returns — for out-of-range roll', () => {
+    expect(lookupRollTable(plasmaEntries, 0)).toBe('—')
+    expect(lookupRollTable(plasmaEntries, 7)).toBe('—')
   })
 })

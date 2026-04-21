@@ -1,5 +1,5 @@
 import type {
-  Trooper, AdvanceResult, OffensivePosition, DefensivePosition,
+  Trooper, AdvanceResult, OffensivePosition, DefensivePosition, RollTableEntry,
 } from '../types'
 
 export function effectiveMobility(t: Trooper): number {
@@ -134,4 +134,9 @@ export function stealthShouldClear(r: AdvanceResult): boolean {
 export function infiltrationPicks(passCount: number, stealthWasActive: boolean): number {
   if (!stealthWasActive) return 0
   return Math.floor(passCount / 2)
+}
+
+export function lookupRollTable(entries: RollTableEntry[], roll: number): string {
+  const entry = entries.find(e => roll >= e.min && roll <= e.max)
+  return entry?.result ?? '—'
 }
