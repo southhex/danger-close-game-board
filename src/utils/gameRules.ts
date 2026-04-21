@@ -31,9 +31,10 @@ export function advanceModifier(args: {
   tl: number
   stealth: boolean
   assaultAmmo: number
+  droneBonus: number
 }): {
   fatigue: number; wounds: number; weather: number; tl: number;
-  stealth: number; assault: number; total: number
+  stealth: number; assault: number; drone: number; total: number
 } {
   const fatigue = -Math.floor(args.advanceRolls / 3)
   const wounds = -args.wounds
@@ -41,9 +42,10 @@ export function advanceModifier(args: {
   const tl = -args.tl
   const stealth = args.stealth ? 3 : 0
   const assault = args.assaultAmmo
+  const drone = args.droneBonus
   return {
-    fatigue, wounds, weather, tl, stealth, assault,
-    total: fatigue + wounds + weather + tl + stealth + assault,
+    fatigue, wounds, weather, tl, stealth, assault, drone,
+    total: fatigue + wounds + weather + tl + stealth + assault + drone,
   }
 }
 

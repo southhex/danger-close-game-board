@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { rollDie } from '../../utils/dice'
 import { effectiveMobility, mobilityCheck, offposFromCheck, infiltrationPicks } from '../../utils/gameRules'
+import { ConfirmDialog } from '../../components'
 import type { Trooper, AdvanceResult, OffensivePosition } from '../../types'
 
 interface Check { roll: number | null; pass: boolean | null }
@@ -17,6 +18,7 @@ export default function MobilityCheckPhase({ troopers, result, stealthWasActive,
   const [checks, setChecks] = useState<Record<string, Check>>(
     () => Object.fromEntries(troopers.map(t => [t.id, { roll: null, pass: null }])),
   )
+  const [confirmOpen, setConfirmOpen] = useState(false)
 
   const allRolled = troopers.every(t => checks[t.id].roll !== null)
   const passCount = troopers.filter(t => checks[t.id].pass === true).length
@@ -78,11 +80,20 @@ export default function MobilityCheckPhase({ troopers, result, stealthWasActive,
 
       <div className="flex justify-end gap-2 mt-3">
         <button onClick={onCancel} className="text-[10px] text-muted border border-border px-3 py-1">CANCEL</button>
-        <button disabled={!allRolled} onClick={apply}
+        <button disabled={!allRolled} onClick={() => setConfirmOpen(true)}
           className="text-[10px] text-ok border border-ok px-3 py-1 disabled:opacity-40">
           APPLY RESULT
         </button>
       </div>
+      <ConfirmDialog
+        open={confirmOpen}
+        title="APPLY RESULT"
+        message={`Apply ${result.toUpperCase()} result to all troopers? This cannot be undone.`}
+        confirmLabel="APPLY"
+        tone="default"
+        onConfirm={() => { setConfirmOpen(false); apply() }}
+        onCancel={() => setConfirmOpen(false)}
+      />
     </div>
   )
 }

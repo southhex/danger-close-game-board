@@ -40,12 +40,12 @@ describe('flankingBonus', () => {
 
 describe('advanceModifier', () => {
   it('fatigue is −floor(rolls/3)', () => {
-    const m = advanceModifier({ advanceRolls: 7, wounds: 0, weather: 0, tl: 1, stealth: false, assaultAmmo: 0 })
+    const m = advanceModifier({ advanceRolls: 7, wounds: 0, weather: 0, tl: 1, stealth: false, assaultAmmo: 0, droneBonus: 0 })
     expect(m.fatigue).toBe(-2)
   })
   it('combines all parts', () => {
-    const m = advanceModifier({ advanceRolls: 3, wounds: 1, weather: -1, tl: 2, stealth: true, assaultAmmo: 2 })
-    // fatigue=-1, wounds=-1, weather=-1, tl=-2, stealth=+3, assault=+2
+    const m = advanceModifier({ advanceRolls: 3, wounds: 1, weather: -1, tl: 2, stealth: true, assaultAmmo: 2, droneBonus: 0 })
+    // fatigue=-1, wounds=-1, weather=-1, tl=-2, stealth=+3, assault=+2, drone=0
     expect(m.total).toBe(0)
   })
 })

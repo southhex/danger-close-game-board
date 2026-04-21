@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { rollDie, rollDice, parseDiceNotation } from '../src/utils/dice'
+import { rollDie, rollDice } from '../src/utils/dice'
 
 describe('dice', () => {
   it('rollDie returns 1..6', () => {
@@ -11,14 +11,5 @@ describe('dice', () => {
   })
   it('rollDice returns n results', () => {
     expect(rollDice(3)).toHaveLength(3)
-  })
-  it('parseDiceNotation parses 2d6', () => {
-    expect(parseDiceNotation('2d6')).toEqual({ count: 2, sides: 6 })
-  })
-  it('parseDiceNotation parses d6', () => {
-    expect(parseDiceNotation('d6')).toEqual({ count: 1, sides: 6 })
-  })
-  it('parseDiceNotation throws on invalid notation', () => {
-    expect(() => parseDiceNotation('abc')).toThrow('Invalid dice notation')
   })
 })

@@ -51,8 +51,14 @@ export default function TrooperEditor({ open, trooperId, onClose }: Props) {
   }, [form.armor, form.weapon, form.special_weapon, form.special_gear])
 
   const save = () => {
-    const sw = form.special_weapon ? (gearByName(form.special_weapon)?.max_uses ?? -1) : -1
-    const sg = form.special_gear ? (gearByName(form.special_gear)?.max_uses ?? -1) : -1
+    const swChanged = form.special_weapon !== existing?.special_weapon
+    const sgChanged = form.special_gear !== existing?.special_gear
+    const sw = swChanged
+      ? (form.special_weapon ? (gearByName(form.special_weapon)?.max_uses ?? -1) : -1)
+      : form.special_weapon_uses
+    const sg = sgChanged
+      ? (form.special_gear ? (gearByName(form.special_gear)?.max_uses ?? -1) : -1)
+      : form.special_gear_uses
     const payload = {
       ...form,
       mobility: computedMob,

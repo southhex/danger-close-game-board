@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { useStore } from '../../store'
 import {
-  advanceModifier, advanceResult, woundCount,
+  advanceModifier, advanceResult, woundCount, clampAmmo,
 } from '../../utils/gameRules'
 import { rollDice } from '../../utils/dice'
 import { newId } from '../../utils/id'
@@ -14,7 +14,7 @@ type Phase =
   | { kind: 'mobility'; result: AdvanceResult; stealthWasActive: boolean; troopers: Trooper[] }
 
 export default function AdvanceRollPanel() {
-  const mission = useStore(s => s.mission)!
+  const mission = useStore(s => s.mission)
   const troopers = useStore(s => s.troopers)
   const setMission = useStore(s => s.setMission)
   const applyAdvanceResult = useStore(s => s.applyAdvanceResult)
@@ -27,6 +27,10 @@ export default function AdvanceRollPanel() {
   const activeTroopers = useMemo(() => troopers.filter(t => t.active), [troopers])
   const wounds = useMemo(() => woundCount(troopers), [troopers])
 
+  if (!mission) return null
+
+  const droneBonus = activeTroopers.some(t => t.special_gear === 'Drone Gear') ? 1 : 0
+
   const mod = advanceModifier({
     advanceRolls: mission.advance_rolls,
     wounds,
@@ -34,6 +38,7 @@ export default function AdvanceRollPanel() {
     tl: mission.sector.tl,
     stealth: mission.stealth,
     assaultAmmo,
+    droneBonus,
   })
 
   const setStealth = (v: boolean) => setMission({ stealth: v })
@@ -73,7 +78,7 @@ export default function AdvanceRollPanel() {
   }
 
   const onAssaultChange = (v: number) => {
-    const clamped = Math.max(0, Math.min(3, v))
+    const clamped = clampAmmo(v)
     setAssaultAmmo(clamped)
     if (clamped > 0 && mission.stealth) setMission({ stealth: false })
   }
@@ -113,7 +118,8 @@ export default function AdvanceRollPanel() {
           <div className="text-[10px] text-muted italic mb-2">
             Fatigue {mod.fatigue} · Wounds {mod.wounds} · Weather {mod.weather >= 0 ? `+${mod.weather}` : mod.weather}
             {' '}· TL {mod.tl} · Stealth {mod.stealth >= 0 ? `+${mod.stealth}` : mod.stealth}
-            {' '}· Assault +{mod.assault} = <span className={mod.total < 0 ? 'text-bad' : 'text-ok'}>{mod.total >= 0 ? `+${mod.total}` : mod.total}</span>
+            {' '}· Assault +{mod.assault} · Drone {mod.drone >= 0 ? `+${mod.drone}` : mod.drone}
+            {' '}= <span className={mod.total < 0 ? 'text-bad' : 'text-ok'}>{mod.total >= 0 ? `+${mod.total}` : mod.total}</span>
           </div>
 
           <button onClick={roll} className="text-[11px] text-warn border border-warn px-3 py-1">ROLL 2D6 ▸</button>
