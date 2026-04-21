@@ -21,10 +21,13 @@ const EMPTY: Omit<Trooper, 'id'> = {
 
 function optionsFor(type: 'weapon' | 'specialweapon' | 'specialequipment' | 'armor', includeNone = false) {
   const base = includeNone ? [{ value: '', label: '— None —' }] : []
-  return base.concat(gearByType(type).map(g => ({
-    value: g.name,
-    label: `${g.name} · MOB ${g.mobility_cost} · REQ ${g.reqcost}${g.max_uses > 0 ? ` · USES ${g.max_uses}` : ''}`,
-  })))
+  return base.concat(gearByType(type).map(g => {
+    const parts: string[] = [g.name]
+    if (g.mobility_cost !== 0) parts.push(`MOB ${g.mobility_cost}`)
+    if (g.reqcost !== 0) parts.push(`REQ ${g.reqcost}`)
+    if (g.max_uses > 0) parts.push(`USES ${g.max_uses}`)
+    return { value: g.name, label: parts.join(' · ') }
+  }))
 }
 
 export default function TrooperEditor({ open, trooperId, onClose }: Props) {
@@ -84,7 +87,7 @@ export default function TrooperEditor({ open, trooperId, onClose }: Props) {
       <Modal open={open} onClose={onClose} title={trooperId ? 'EDIT TROOPER' : 'NEW TROOPER'}>
         <div className="grid grid-cols-2 gap-3">
           <label className="col-span-1">
-            <div className="lbl text-[10px] mb-1">NAME</div>
+            <div className="lbl text-[10px] mb-1">NICKNAME</div>
             <input className="w-full bg-bg border border-border text-ink text-xs px-2 py-1 font-mono" value={form.name} onChange={e => set('name', e.target.value)} />
           </label>
           <label className="col-span-1">
