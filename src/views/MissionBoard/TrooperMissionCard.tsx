@@ -1,13 +1,16 @@
-import { memo, useMemo } from 'react'
-import { Dropdown, PipTracker, Stepper, GearPopover } from '../../components'
+import { memo, useMemo, useState } from 'react'
+import { Dropdown, PipTracker, Stepper, GearPopover, TextPopover } from '../../components'
 import { STATUS_COLOR } from '../../components/StatusBadge'
 import { gearByName } from '../../data/gear'
+import { tagByName } from '../../data/tags'
 import {
-  effectiveMobility, flankingBonus, canSetDefpos, canSetOffpos, clampUses,
+  effectiveMobility, flankingBonus, canSetDefpos, canSetOffpos, clampUses, lookupRollTable,
 } from '../../utils/gameRules'
+import { rollDie } from '../../utils/dice'
+import { newId } from '../../utils/id'
 import { useStore } from '../../store'
 import type {
-  Trooper, TrooperStatus, OffensivePosition, DefensivePosition,
+  Trooper, TrooperStatus, OffensivePosition, DefensivePosition, GearItem,
 } from '../../types'
 
 const STATUS_OPTS: { value: TrooperStatus; label: string }[] = [
@@ -35,6 +38,20 @@ interface Props {
 
 const TrooperMissionCard = memo(function TrooperMissionCard({ trooper, squad, cover, space }: Props) {
   const updateTrooper = useStore(s => s.updateTrooper)
+  const addRoll = useStore(s => s.addRoll)
+  const [rollResults, setRollResults] = useState<Record<string, { roll: number; result: string }>>({})
+
+  const handleRollTable = (gearName: string, table: NonNullable<GearItem['roll_table']>) => {
+    const roll = rollDie(table.sides)
+    const result = lookupRollTable(table.entries, roll)
+    setRollResults(prev => ({ ...prev, [gearName]: { roll, result } }))
+    addRoll({
+      id: newId(), timestamp: Date.now(),
+      label: gearName, dice: `1d${table.sides}`,
+      results: [roll], modifier: 0, total: roll,
+    })
+  }
+
   const effMob = effectiveMobility(trooper)
   const flk = flankingBonus(effMob)
   const color = STATUS_COLOR[trooper.status]
@@ -69,9 +86,9 @@ const TrooperMissionCard = memo(function TrooperMissionCard({ trooper, squad, co
           onChange={v => updateTrooper(trooper.id, { status: v as TrooperStatus })} />
 
         <div className="flex gap-3">
-          <PipTracker label="GRIT" value={trooper.grit} max={3}
+          <PipTracker label="GRIT" value={trooper.grit} max={trooper.grit_max}
             onChange={v => updateTrooper(trooper.id, { grit: v })} />
-          <PipTracker label="AMMO" value={trooper.ammo} max={3}
+          <PipTracker label="AMMO" value={trooper.ammo} max={trooper.ammo_max}
             onChange={v => updateTrooper(trooper.id, { ammo: v })} />
         </div>
 
@@ -102,13 +119,27 @@ const TrooperMissionCard = memo(function TrooperMissionCard({ trooper, squad, co
             </GearPopover>
           )}
           {sw && (
-            <div className="flex items-center justify-between">
-              <GearPopover gear={sw}><div>{sw.name.toUpperCase()}</div></GearPopover>
-              {sw.max_uses > 0 && (
-                <PipTracker value={trooper.special_weapon_uses < 0 ? 0 : trooper.special_weapon_uses}
-                  max={sw.max_uses}
-                  onChange={v => updateTrooper(trooper.id, { special_weapon_uses: clampUses(v, sw.max_uses) })}
-                  size={8} color="#c8a030" />
+            <div className="flex flex-col gap-0.5">
+              <div className="flex items-center justify-between">
+                <GearPopover gear={sw}><div>{sw.name.toUpperCase()}</div></GearPopover>
+                <div className="flex items-center gap-1">
+                  {sw.roll_table && (
+                    <button
+                      onClick={() => handleRollTable(sw.name, sw.roll_table!)}
+                      className="text-[9px] text-warn border border-warn px-1 py-0.5">ROLL</button>
+                  )}
+                  {sw.max_uses > 0 && (
+                    <PipTracker value={trooper.special_weapon_uses < 0 ? 0 : trooper.special_weapon_uses}
+                      max={sw.max_uses}
+                      onChange={v => updateTrooper(trooper.id, { special_weapon_uses: clampUses(v, sw.max_uses) })}
+                      size={8} color="#c8a030" />
+                  )}
+                </div>
+              </div>
+              {rollResults[sw.name] && (
+                <div className="text-[9px] text-warn">
+                  d{sw.roll_table?.sides}: {rollResults[sw.name].roll} → {rollResults[sw.name].result}
+                </div>
               )}
             </div>
           )}
@@ -124,6 +155,28 @@ const TrooperMissionCard = memo(function TrooperMissionCard({ trooper, squad, co
             </div>
           )}
         </div>
+
+        {(trooper.tag || trooper.perks.length > 0) && (
+          <div className="flex flex-wrap gap-1 border-t border-border pt-1">
+            {trooper.tag && (() => {
+              const tagData = tagByName(trooper.tag)
+              return tagData ? (
+                <TextPopover title={tagData.name} body={tagData.description}>
+                  <span className="text-[9px] border border-border px-1 text-muted uppercase tracking-wider">
+                    {tagData.name}
+                  </span>
+                </TextPopover>
+              ) : null
+            })()}
+            {trooper.perks.map((perk, i) => (
+              <TextPopover key={i} title={perk.name} body={perk.description || 'No description.'}>
+                <span className="text-[9px] border border-border px-1 text-muted uppercase tracking-wider">
+                  {perk.name}
+                </span>
+              </TextPopover>
+            ))}
+          </div>
+        )}
 
         <div className="flex justify-between text-[10px] border-t border-border pt-1">
           <span className={effMob < trooper.mobility ? 'text-wound' : 'text-ink'}>MOB {effMob}</span>
