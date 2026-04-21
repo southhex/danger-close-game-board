@@ -1,4 +1,5 @@
-import { Dropdown } from '../../components'
+import { useState } from 'react'
+import { Dropdown, Modal } from '../../components'
 import { useStore } from '../../store'
 import { clampMomentum, fortifiedLimit, flankingLimit } from '../../utils/gameRules'
 
@@ -26,13 +27,16 @@ const WEATHER_OPTS = [
 ]
 
 const MOMENTUM_LABEL: Record<string, string> = {
-  '-3': 'ROUTED', '-2': 'PINNED', '-1': 'LOSING', '0': 'CONTESTED',
-  '1': 'GAINING', '2': 'DOMINANT', '3': 'OVERRUNNING',
+  '-3': 'DEFEAT', '-2': 'FALTERING', '-1': 'LOSING GROUND', '0': 'CONTESTED',
+  '1': 'GAINING GROUND', '2': 'BREAKING THROUGH', '3': 'VICTORY',
 }
 
 export default function SectorMomentumPanel() {
   const mission = useStore(s => s.mission)
   const setMission = useStore(s => s.setMission)
+  const resetMission = useStore(s => s.resetMission)
+  const [victoryOpen, setVictoryOpen] = useState(false)
+  const [defeatOpen, setDefeatOpen] = useState(false)
   if (!mission) return null
 
   const { cover, space, tl, weather } = mission.sector
@@ -59,16 +63,64 @@ export default function SectorMomentumPanel() {
         <div className="flex flex-col items-center justify-center min-w-[110px] gap-2">
           <div className="lbl text-[10px]">MOMENTUM</div>
           <div className="flex items-center gap-3">
-            <button onClick={() => setMission({ momentum: clampMomentum(mission.momentum - 1) })} className="text-muted text-lg leading-none">◀</button>
+            <button
+              onClick={() => {
+                const next = mission.momentum - 1
+                if (next < -3) setDefeatOpen(true)
+                else setMission({ momentum: clampMomentum(next) })
+              }}
+              className="text-muted text-lg leading-none">◀</button>
             <div className="text-center">
               <div className="text-ink text-lg font-bold">{mission.momentum >= 0 ? `+${mission.momentum}` : mission.momentum}</div>
               <div className="text-[9px] tracking-wider text-neutral mt-0.5">{MOMENTUM_LABEL[String(mission.momentum)] ?? ''}</div>
             </div>
-            <button onClick={() => setMission({ momentum: clampMomentum(mission.momentum + 1) })} className="text-muted text-lg leading-none">▶</button>
+            <button
+              onClick={() => {
+                const next = mission.momentum + 1
+                if (next > 3) setVictoryOpen(true)
+                else setMission({ momentum: clampMomentum(next) })
+              }}
+              className="text-muted text-lg leading-none">▶</button>
           </div>
         </div>
       </div>
       <div className="text-[10px] text-muted italic mt-3">{constraintText}</div>
+
+      <Modal open={victoryOpen} onClose={() => setVictoryOpen(false)} title="VICTORY">
+        <p className="text-[11px] text-muted mb-4">
+          MOMENTUM HAS REACHED +3 — Did the enemy break completely?
+        </p>
+        <div className="flex gap-2 justify-end">
+          <button
+            onClick={() => { setMission({ momentum: 0 }); setVictoryOpen(false) }}
+            className="text-[11px] text-muted border border-border px-3 py-1">
+            THEY HOLD — RESET MOMENTUM
+          </button>
+          <button
+            onClick={() => setVictoryOpen(false)}
+            className="text-[11px] text-ok border border-ok px-3 py-1">
+            ENEMY BREAKS
+          </button>
+        </div>
+      </Modal>
+
+      <Modal open={defeatOpen} onClose={() => setDefeatOpen(false)} title="DEFEAT">
+        <p className="text-[11px] text-muted mb-4">
+          MOMENTUM HAS REACHED −3 — The squad is forced to fall back.
+        </p>
+        <div className="flex gap-2 justify-end">
+          <button
+            onClick={() => setDefeatOpen(false)}
+            className="text-[11px] text-muted border border-border px-3 py-1">
+            ACKNOWLEDGE
+          </button>
+          <button
+            onClick={() => { resetMission(); setDefeatOpen(false) }}
+            className="text-[11px] text-bad border border-bad px-3 py-1">
+            RESET MISSION
+          </button>
+        </div>
+      </Modal>
     </div>
   )
 }
