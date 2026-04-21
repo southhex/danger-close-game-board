@@ -28,7 +28,7 @@ export default function App() {
   const CurrentView = VIEW_COMPONENTS[view]
 
   return (
-    <div className="min-h-screen bg-bg text-ink font-mono flex">
+    <div className="h-screen overflow-hidden bg-bg text-ink font-mono flex" style={{ height: '100dvh' }}>
       {isDesktop && (
         <aside className="w-14 bg-surface border-r border-border flex flex-col items-stretch py-3 flex-shrink-0">
           <div className="text-ok text-center text-[10px] tracking-[0.1em] pb-2 mb-4 border-b border-border">DC</div>
