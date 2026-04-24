@@ -39,9 +39,14 @@ export default function SectorMomentumPanel() {
   const [defeatOpen, setDefeatOpen] = useState(false)
   if (!mission) return null
 
-  const { cover, space, tl, weather } = mission.sector
-  const setSector = (patch: Partial<typeof mission.sector>) =>
-    setMission({ sector: { ...mission.sector, ...patch } })
+  const activeSector = mission.sectors.find(s => s.id === mission.activeSectorId) ?? mission.sectors[0]
+  const { cover, space, tl, weather } = activeSector
+  const setSector = (patch: Partial<typeof activeSector>) =>
+    setMission({
+      sectors: mission.sectors.map(s =>
+        s.id === activeSector.id ? { ...s, ...patch } : s
+      ),
+    })
 
   const fortLimit = fortifiedLimit(cover)
   const flanklimit = flankingLimit(space)

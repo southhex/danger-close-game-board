@@ -31,11 +31,13 @@ export default function AdvanceRollPanel() {
 
   const droneBonus = activeTroopers.some(t => t.special_gear === 'Drone Gear') ? 1 : 0
 
+  const activeSector = mission.sectors.find(s => s.id === mission.activeSectorId) ?? mission.sectors[0]
+
   const mod = advanceModifier({
     advanceRolls: mission.advance_rolls,
     wounds,
-    weather: mission.sector.weather,
-    tl: mission.sector.tl,
+    weather: activeSector.weather,
+    tl: activeSector.tl,
     stealth: mission.stealth,
     assaultAmmo,
     droneBonus,

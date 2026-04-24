@@ -21,10 +21,13 @@ export default function TrooperCardDock() {
             {troopers.length === 0 && (
               <div className="text-[10px] text-muted italic">No active troopers. Activate troopers in the Barracks.</div>
             )}
-            {troopers.map(t => (
-              <TrooperMissionCard key={t.id} trooper={t} squad={troopers}
-                cover={mission.sector.cover} space={mission.sector.space} />
-            ))}
+            {troopers.map(t => {
+              const activeSector = mission.sectors.find(s => s.id === mission.activeSectorId) ?? mission.sectors[0]
+              return (
+                <TrooperMissionCard key={t.id} trooper={t} squad={troopers}
+                  cover={activeSector.cover} space={activeSector.space} />
+              )
+            })}
           </div>
         </div>
       </div>

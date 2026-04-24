@@ -36,7 +36,10 @@ interface Store extends AppState {
 const DEFAULT_MISSION: MissionState = {
   id: 'current',
   name: 'Current Mission',
-  sector: { name: 'Sector', cover: 1, space: 1, tl: 2, weather: 0 },
+  sectors: [{ id: 'sector-1', name: 'Sector Alpha', cover: 1, space: 1, tl: 2, weather: 0, status: 'active' }],
+  activeSectorId: 'sector-1',
+  phase: 'advance' as const,
+  engagement: null,
   momentum: 0,
   advance_rolls: 0,
   stealth: false,
@@ -160,7 +163,7 @@ export const useStore = create<Store>()(
     }),
     {
       name: 'danger-close-app-state',
-      version: 1,
+      version: 2,
       migrate: (persistedState: unknown, version: number) => {
         if (version < 1) {
           const state = persistedState as Record<string, unknown>
@@ -175,6 +178,23 @@ export const useStore = create<Store>()(
             }))
           }
           return state
+        }
+        if (version < 2) {
+          const state = persistedState as Record<string, unknown>
+          if (state.mission && typeof state.mission === 'object') {
+            const m = state.mission as Record<string, unknown>
+            if (m.sector && !m.sectors) {
+              const oldSector = m.sector as Record<string, unknown>
+              m.sectors = [{ id: 'sector-1', ...oldSector, status: 'active' }]
+              m.activeSectorId = 'sector-1'
+              delete m.sector
+            } else if (!m.sectors) {
+              m.sectors = [{ id: 'sector-1', name: 'Sector Alpha', cover: 1, space: 1, tl: 2, weather: 0, status: 'active' }]
+              m.activeSectorId = 'sector-1'
+            }
+            m.phase = m.phase ?? 'advance'
+            m.engagement = m.engagement ?? null
+          }
         }
         return persistedState as Record<string, unknown>
       },

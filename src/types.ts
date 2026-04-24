@@ -60,22 +60,101 @@ export interface Trooper {
 }
 
 export interface MissionSector {
+  id: string
   name: string
   cover: 0 | 1 | 2
   space: 0 | 1 | 2
   tl: 1 | 2 | 3 | 4
   weather: -2 | -1 | 0 | 1
+  status: 'pending' | 'active' | 'cleared'
 }
 
 export interface MissionState {
   id: string
   name: string
-  sector: MissionSector
+  sectors: MissionSector[]
+  activeSectorId: string
+  phase: 'advance' | 'engagement' | 'catch_breath'
+  engagement: EngagementState | null
   momentum: number
   advance_rolls: number
   stealth: boolean
   notes: string
 }
+
+export interface EngagementState {
+  exchangeNumber: number
+  step: 'intent' | 'offense' | 'defense' | 'momentum' | 'enemy_tactics'
+  pressure: number
+  hardTargets: HardTarget[]
+  attachedForces: AttachedForce[]
+  intents: Record<string, TrooperIntent>
+  offenseResult: OffenseResult | null
+  defenseResults: Record<string, DefenseResult>
+  pendingTactic: EnemyTactic | null
+  radioStrikeCountdown: number | null
+  nextExchangeModifiers: NextExchangeModifiers
+  momentumGainedLastExchange: boolean
+  trooperDiedLastExchange: boolean
+  trooperMovedLastExchange: Record<string, boolean>
+  tankActsThisExchange: boolean
+}
+
+export interface NextExchangeModifiers {
+  atkPenalty: number
+  flankingDefPenalty: string[]
+  mustMove: string[]
+  flankedMustFallBack: string[]
+}
+
+export interface HardTarget {
+  id: string
+  type: 'brute' | 'sniper' | 'grenadier' | 'gun_nest' | 'tank'
+  name: string
+  maxHp: number
+  currentHp: number
+  isGround: boolean
+}
+
+export interface AttachedForce {
+  id: string
+  name: string
+  dice: number
+  isVip: boolean
+  committed: boolean
+}
+
+export interface TrooperIntent {
+  action: 'fire' | 'move' | 'covering_fire' | 'special_gear' | 'interact' | 'disengage' | 'improvise'
+  atkContribution: number
+  hardTargetId?: string
+  ammoSpent: number
+  moveType?: 'move_up' | 'fall_back' | 'reposition'
+  mobilityRoll?: number
+  mobilityPassed?: boolean
+  coveringFireTargets?: string[]
+  gearAction?: string
+  gearTargets?: string[]
+  note?: string
+}
+
+export interface OffenseResult {
+  roll: number
+  outcome: 'pushed_back' | 'hold_position' | 'success_at_cost' | 'success'
+  chosenOutcome?: 'hold_position' | 'success_at_cost'
+  momentumDelta: number
+  sacPenaltyTrooperId?: string
+  hardTargetResults: Record<string, { hits: number; atCost: boolean }>
+}
+
+export interface DefenseResult {
+  roll: number
+  outcome: 'safe' | 'direct_fire'
+  resolution?: 'injury' | 'suppressed'
+  injuryCount?: number
+}
+
+export type EnemyTactic = 'none' | 'reposition' | 'scatter' | 'pinned_down' | 'encircle' | 'push_forward' | 'fall_back'
 
 export interface DiceRoll {
   id: string
