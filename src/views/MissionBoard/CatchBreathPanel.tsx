@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect } from 'react'
 import { ConfirmDialog, StatusBadge } from '../../components'
 import { useStore } from '../../store'
 import SectorEditorModal from './SectorEditorModal'
@@ -17,14 +17,11 @@ export default function CatchBreathPanel() {
     ? mission.sectors.slice(currentIdx + 1).find(s => s.status === 'pending') ?? null
     : null
 
-  // Track which troopers were grazed at mount
-  const grazedAtMountRef = useRef<string[]>([])
   const [grazedCleared, setGrazedCleared] = useState(false)
   const [hadGrazed, setHadGrazed] = useState(false)
 
   useEffect(() => {
     const grazed = activeTroopers.filter(t => t.status === 'grazed')
-    grazedAtMountRef.current = grazed.map(t => t.id)
     if (grazed.length > 0) {
       setHadGrazed(true)
       grazed.forEach(t => updateTrooper(t.id, { status: 'ok' }))
