@@ -402,7 +402,6 @@ export default function IntentStep({ engagement, troopers, sector, hardTargets }
         <MoveModal
           trooper={moveModalTrooper}
           sector={sector}
-          engagement={engagement}
           open={moveModalFor !== null}
           onClose={() => setMoveModalFor(null)}
           onConfirm={partial => handleMoveConfirm(moveModalTrooper, partial)}
@@ -412,7 +411,6 @@ export default function IntentStep({ engagement, troopers, sector, hardTargets }
         <CoveringFireModal
           trooper={coveringFireTrooper}
           allTroopers={troopers}
-          sector={sector}
           open={coveringFireFor !== null}
           onClose={() => setCoveringFireFor(null)}
           onConfirm={partial => handleCoveringFireConfirm(coveringFireTrooper, partial)}

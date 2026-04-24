@@ -14,7 +14,6 @@ const HT_LABELS: Record<HardTarget['type'], string> = {
 
 interface Props {
   hardTargets: HardTarget[]
-  sectorTl: number
 }
 
 export default function HardTargetPanel({ hardTargets }: Props) {

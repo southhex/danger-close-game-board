@@ -104,6 +104,7 @@ export default function EnemyTacticsStep({ engagement, troopers, sector, addRoll
   function handleNullify() {
     if (!nullifyTrooperId) return
     nullifyTactic(nullifyTrooperId)
+    setApplied(true)  // prevent resolveEnemyTactics from being called after nullify
     setNullifyTrooperId('')
   }
 

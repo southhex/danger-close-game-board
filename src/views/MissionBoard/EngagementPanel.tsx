@@ -95,7 +95,7 @@ export default function EngagementPanel() {
       </div>
 
       {/* Hard Targets */}
-      <HardTargetPanel hardTargets={eng.hardTargets} sectorTl={activeSector.tl} />
+      <HardTargetPanel hardTargets={eng.hardTargets} />
 
       {/* Attached Forces */}
       <AttachedForcePanel forces={eng.attachedForces} />

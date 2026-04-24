@@ -4,12 +4,11 @@ import { rollDie } from '../../utils/dice'
 import { newId } from '../../utils/id'
 import { mobilityCheck, effectiveMobility } from '../../utils/gameRules'
 import { useStore } from '../../store'
-import type { Trooper, MissionSector, EngagementState, TrooperIntent } from '../../types'
+import type { Trooper, MissionSector, TrooperIntent } from '../../types'
 
 interface Props {
   trooper: Trooper
   sector: MissionSector
-  engagement: EngagementState
   open: boolean
   onClose: () => void
   onConfirm: (intent: Partial<TrooperIntent>) => void
@@ -23,7 +22,7 @@ const MOVE_LABEL: Record<MoveType, string> = {
   reposition: 'REPOSITION',
 }
 
-export default function MoveModal({ trooper, sector, engagement, open, onClose, onConfirm }: Props) {
+export default function MoveModal({ trooper, sector, open, onClose, onConfirm }: Props) {
   const addRoll = useStore(s => s.addRoll)
   const [moveType, setMoveType] = useState<MoveType>('move_up')
   const [mobilityRoll, setMobilityRoll] = useState<number | null>(null)
@@ -115,8 +114,6 @@ export default function MoveModal({ trooper, sector, engagement, open, onClose, 
     setMoveType('move_up')
     onClose()
   }
-
-  const _ = engagement // suppress unused warning — available for future use
 
   return (
     <Modal open={open} onClose={handleClose} title={`MOVE — ${trooper.name}`}>

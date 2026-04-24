@@ -1,19 +1,16 @@
 import { useState } from 'react'
 import { Modal } from '../../components'
-import type { Trooper, MissionSector, TrooperIntent } from '../../types'
+import type { Trooper, TrooperIntent } from '../../types'
 
 interface Props {
   trooper: Trooper           // the covering fire provider
   allTroopers: Trooper[]     // all active non-dead troopers
-  sector: MissionSector
   open: boolean
   onClose: () => void
   onConfirm: (intent: Partial<TrooperIntent>) => void
 }
 
-const _ = (x: unknown) => x  // suppress unused warning
-
-export default function CoveringFireModal({ trooper, allTroopers, sector: _sector, open, onClose, onConfirm }: Props) {
+export default function CoveringFireModal({ trooper, allTroopers, open, onClose, onConfirm }: Props) {
   const [selected, setSelected] = useState<Set<string>>(new Set())
 
   const hasLMG = trooper.special_weapon === 'LMG'
@@ -51,8 +48,6 @@ export default function CoveringFireModal({ trooper, allTroopers, sector: _secto
     setSelected(new Set())
     onClose()
   }
-
-  _(_sector)
 
   return (
     <Modal open={open} onClose={handleClose} title={`COVERING FIRE — ${trooper.name}`}>
