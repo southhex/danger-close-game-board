@@ -18,6 +18,7 @@ export default function AdvanceRollPanel() {
   const troopers = useStore(s => s.troopers)
   const setMission = useStore(s => s.setMission)
   const applyAdvanceResult = useStore(s => s.applyAdvanceResult)
+  const beginEngagement = useStore(s => s.beginEngagement)
   const addRoll = useStore(s => s.addRoll)
 
   const [assaultAmmo, setAssaultAmmo] = useState(0)
@@ -75,6 +76,7 @@ export default function AdvanceRollPanel() {
   const onApplyMobility = (mapping: Record<string, OffensivePosition>) => {
     if (phase.kind !== 'mobility') return
     applyAdvanceResult({ result: phase.result, trooperOffpos: mapping })
+    beginEngagement()
     setPhase({ kind: 'setup' })
     setAssaultAmmo(0)
   }

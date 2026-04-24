@@ -3,6 +3,9 @@ import SectorMomentumPanel from './SectorMomentumPanel'
 import MissionNotes from './MissionNotes'
 import TrooperCardDock from './TrooperCardDock'
 import AdvanceRollPanel from './AdvanceRollPanel'
+import SectorChainStrip from './SectorChainStrip'
+import EngagementPanel from './EngagementPanel'
+import CatchBreathPanel from './CatchBreathPanel'
 
 export default function MissionBoard() {
   const mission = useStore(s => s.mission)
@@ -21,7 +24,10 @@ export default function MissionBoard() {
   return (
     <div className="flex flex-col h-full">
       <div className="flex-1 overflow-auto p-3 flex flex-col gap-3 pb-[260px]">
-        <AdvanceRollPanel />
+        <SectorChainStrip />
+        {mission.phase === 'advance' && <AdvanceRollPanel />}
+        {mission.phase === 'engagement' && <EngagementPanel />}
+        {mission.phase === 'catch_breath' && <CatchBreathPanel />}
         <SectorMomentumPanel />
         <MissionNotes />
       </div>
