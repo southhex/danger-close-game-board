@@ -2,6 +2,7 @@ import { useStore } from '../../store'
 import { sectorNotation } from '../../utils/gameRules'
 import HardTargetPanel from './HardTargetPanel'
 import AttachedForcePanel from './AttachedForcePanel'
+import IntentStep from './IntentStep'
 import type { EngagementState } from '../../types'
 
 const STEPS: EngagementState['step'][] = ['intent', 'offense', 'defense', 'momentum', 'enemy_tactics']
@@ -26,6 +27,7 @@ function momentumDisplay(m: number): string {
 
 export default function EngagementPanel() {
   const mission = useStore(s => s.mission)
+  const allTroopers = useStore(s => s.troopers)
   const endEngagement = useStore(s => s.endEngagement)
   const updatePressure = useStore(s => s.updatePressure)
 
@@ -34,6 +36,7 @@ export default function EngagementPanel() {
   const eng = mission.engagement
   const activeSector = mission.sectors.find(s => s.id === mission.activeSectorId) ?? mission.sectors[0]
   const pressureCap = activeSector.tl + 1
+  const activeTroopers = allTroopers.filter(t => t.active && t.status !== 'dead')
 
   return (
     <div className="flex flex-col gap-3">
@@ -95,7 +98,12 @@ export default function EngagementPanel() {
       {/* Active step sub-component */}
       <div>
         {eng.step === 'intent' && (
-          <div className="bg-surface border border-border p-3 text-muted text-[11px]">INTENT STEP</div>
+          <IntentStep
+            engagement={eng}
+            troopers={activeTroopers}
+            sector={activeSector}
+            hardTargets={eng.hardTargets}
+          />
         )}
         {eng.step === 'offense' && (
           <div className="bg-surface border border-border p-3 text-muted text-[11px]">OFFENSE STEP</div>
