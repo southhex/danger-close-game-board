@@ -1,12 +1,15 @@
 import { create } from 'zustand'
 import { persist, createJSONStorage } from 'zustand/middleware'
 import type {
-  AppState, Trooper, MissionState, DiceRoll, ApplyAdvancePayload, View,
+  AppState, Trooper, MissionState, MissionSector, DiceRoll, ApplyAdvancePayload, View,
+  EngagementState, TrooperIntent, OffenseResult, DefenseResult, EnemyTactic,
+  HardTarget, AttachedForce, TrooperStatus,
 } from '../types'
 import { gearByName } from '../data/gear'
 import {
   clampMomentum, clampGrit, clampAmmo, clampUses,
   defposForResult, momentumForResult, stealthShouldClear,
+  pressureIncreases,
 } from '../utils/gameRules'
 import { newId } from '../utils/id'
 
@@ -31,6 +34,42 @@ interface Store extends AppState {
 
   importState: (raw: unknown) => void
   exportState: () => AppState
+
+  // Sector actions
+  addSector: (sector: Omit<MissionSector, 'id' | 'status'>) => void
+  updateSector: (id: string, patch: Partial<Omit<MissionSector, 'id'>>) => void
+  deleteSector: (id: string) => void
+  setActiveSector: (id: string) => void
+
+  // Mission phase
+  setMissionPhase: (phase: 'advance' | 'engagement' | 'catch_breath') => void
+
+  // Engagement lifecycle
+  beginEngagement: () => void
+  updateEngagement: (patch: Partial<EngagementState>) => void
+  setExchangeStep: (step: EngagementState['step']) => void
+  setTrooperIntent: (trooperId: string, intent: TrooperIntent) => void
+  resolveOffenseRoll: (result: OffenseResult) => void
+  resolveDefenseRoll: (trooperId: string, result: DefenseResult) => void
+  resolveEnemyTactics: (args: {
+    naturalD6: number
+    total: number
+    tactic: EnemyTactic
+    repositionTrooperId?: string
+    scatterTrooperId?: string
+    sacPenaltyTrooperId?: string
+  }) => void
+  beginNextExchange: () => void
+  endEngagement: (outcome: 'victory' | 'defeat' | 'disengage') => void
+  advanceToNextSector: () => void
+
+  applyHardTargetHit: (targetId: string, atCost: boolean, costTrooperId?: string) => void
+  updatePressure: (delta: number) => void
+  commitAttachedForce: (forceId: string) => void
+  resolveAttachedForceDice: (forceId: string, results: number[]) => void
+  addHardTarget: (ht: Omit<HardTarget, 'id'>) => void
+  addAttachedForce: (af: Omit<AttachedForce, 'id'>) => void
+  nullifyTactic: (trooperId: string) => void
 }
 
 const DEFAULT_MISSION: MissionState = {
@@ -80,6 +119,34 @@ function clampTrooper(t: Trooper): Trooper {
 }
 
 const DICE_HISTORY_CAP = 20
+
+function advanceStatusByInjury(status: TrooperStatus): TrooperStatus {
+  if (status === 'ok') return 'grazed'
+  if (status === 'grazed') return 'wounded'
+  if (status === 'wounded') return 'bleedingout'
+  // bleedingout and dead both stay as-is during engagement
+  return status
+}
+
+function initialEngagementState(): EngagementState {
+  return {
+    exchangeNumber: 1,
+    step: 'intent',
+    pressure: 0,
+    hardTargets: [],
+    attachedForces: [],
+    intents: {},
+    offenseResult: null,
+    defenseResults: {},
+    pendingTactic: null,
+    radioStrikeCountdown: null,
+    nextExchangeModifiers: { atkPenalty: 0, flankingDefPenalty: [], mustMove: [], flankedMustFallBack: [] },
+    momentumGainedLastExchange: false,
+    trooperDiedLastExchange: false,
+    trooperMovedLastExchange: {},
+    tankActsThisExchange: false,
+  }
+}
 
 export const useStore = create<Store>()(
   persist(
@@ -140,6 +207,419 @@ export const useStore = create<Store>()(
 
       setView: (v) => set({ currentView: v }),
       setDiceTrayOpen: (open) => set({ diceTrayOpen: open }),
+
+      // ── Sector actions ──────────────────────────────────────────────────────
+
+      addSector: (sector) => set((s) => {
+        if (!s.mission) return s
+        return {
+          mission: {
+            ...s.mission,
+            sectors: [...s.mission.sectors, { ...sector, id: newId(), status: 'pending' as const }],
+          },
+        }
+      }),
+
+      updateSector: (id, patch) => set((s) => {
+        if (!s.mission) return s
+        return {
+          mission: {
+            ...s.mission,
+            sectors: s.mission.sectors.map(sec => sec.id === id ? { ...sec, ...patch } : sec),
+          },
+        }
+      }),
+
+      deleteSector: (id) => set((s) => {
+        if (!s.mission) return s
+        // Do not delete active sector
+        if (s.mission.activeSectorId === id) return s
+        return {
+          mission: {
+            ...s.mission,
+            sectors: s.mission.sectors.filter(sec => sec.id !== id),
+          },
+        }
+      }),
+
+      setActiveSector: (id) => set((s) => {
+        if (!s.mission) return s
+        return {
+          mission: {
+            ...s.mission,
+            activeSectorId: id,
+            sectors: s.mission.sectors.map(sec =>
+              sec.id === id ? { ...sec, status: 'active' as const } : sec,
+            ),
+          },
+        }
+      }),
+
+      // ── Mission phase ────────────────────────────────────────────────────────
+
+      setMissionPhase: (phase) => set((s) => {
+        if (!s.mission) return s
+        return { mission: { ...s.mission, phase } }
+      }),
+
+      // ── Engagement lifecycle ─────────────────────────────────────────────────
+
+      beginEngagement: () => set((s) => {
+        if (!s.mission) return s
+        return {
+          mission: {
+            ...s.mission,
+            phase: 'engagement' as const,
+            engagement: initialEngagementState(),
+          },
+        }
+      }),
+
+      updateEngagement: (patch) => set((s) => {
+        if (!s.mission || !s.mission.engagement) return s
+        return {
+          mission: {
+            ...s.mission,
+            engagement: { ...s.mission.engagement, ...patch },
+          },
+        }
+      }),
+
+      setExchangeStep: (step) => set((s) => {
+        if (!s.mission || !s.mission.engagement) return s
+        return {
+          mission: {
+            ...s.mission,
+            engagement: { ...s.mission.engagement, step },
+          },
+        }
+      }),
+
+      setTrooperIntent: (trooperId, intent) => set((s) => {
+        if (!s.mission || !s.mission.engagement) return s
+        return {
+          mission: {
+            ...s.mission,
+            engagement: {
+              ...s.mission.engagement,
+              intents: { ...s.mission.engagement.intents, [trooperId]: intent },
+            },
+          },
+        }
+      }),
+
+      resolveOffenseRoll: (result) => set((s) => {
+        if (!s.mission || !s.mission.engagement) return s
+        const newMomentum = clampMomentum(s.mission.momentum + result.momentumDelta)
+        return {
+          mission: {
+            ...s.mission,
+            momentum: newMomentum,
+            engagement: {
+              ...s.mission.engagement,
+              offenseResult: result,
+              momentumGainedLastExchange: result.momentumDelta > 0,
+            },
+          },
+        }
+      }),
+
+      resolveDefenseRoll: (trooperId, result) => set((s) => {
+        if (!s.mission || !s.mission.engagement) return s
+        let nextTroopers = s.troopers
+        let trooperDied = s.mission.engagement.trooperDiedLastExchange
+        if (result.resolution === 'injury' && result.injuryCount && result.injuryCount > 0) {
+          nextTroopers = s.troopers.map(t => {
+            if (t.id !== trooperId) return t
+            let newStatus = t.status
+            for (let i = 0; i < result.injuryCount!; i++) {
+              newStatus = advanceStatusByInjury(newStatus)
+            }
+            return { ...t, status: newStatus }
+          })
+        }
+        if (result.resolution === 'suppressed') {
+          nextTroopers = nextTroopers.map(t =>
+            t.id === trooperId ? { ...t, suppressed: true } : t,
+          )
+        }
+        return {
+          troopers: nextTroopers,
+          mission: {
+            ...s.mission,
+            engagement: {
+              ...s.mission.engagement,
+              trooperDiedLastExchange: trooperDied,
+              defenseResults: {
+                ...s.mission.engagement.defenseResults,
+                [trooperId]: result,
+              },
+            },
+          },
+        }
+      }),
+
+      resolveEnemyTactics: ({ naturalD6, total: _total, tactic, repositionTrooperId, scatterTrooperId }) => set((s) => {
+        if (!s.mission || !s.mission.engagement) return s
+        const eng = s.mission.engagement
+
+        // 1. Pressure increase
+        const activeSector = s.mission.sectors.find(sec => sec.id === s.mission!.activeSectorId)
+        const pressureCap = activeSector ? activeSector.tl + 1 : 5
+        const newPressure = pressureIncreases(naturalD6)
+          ? Math.min(eng.pressure + 1, pressureCap)
+          : eng.pressure
+
+        // 2. Compute nextExchangeModifiers and trooper changes based on tactic
+        let nextMods = { ...eng.nextExchangeModifiers }
+        let nextTroopers = s.troopers
+
+        if (tactic === 'reposition' && repositionTrooperId) {
+          nextTroopers = s.troopers.map(t =>
+            t.id === repositionTrooperId && t.offpos === 'flanking'
+              ? { ...t, offpos: 'engaged' as const }
+              : t,
+          )
+        } else if (tactic === 'scatter' && scatterTrooperId) {
+          nextMods = { ...nextMods, mustMove: [...nextMods.mustMove, scatterTrooperId] }
+        } else if (tactic === 'pinned_down') {
+          nextMods = { ...nextMods, atkPenalty: 2 }
+        } else if (tactic === 'encircle') {
+          nextTroopers = s.troopers.map(t =>
+            t.active && t.defpos === 'fortified' ? { ...t, defpos: 'incover' as const } : t,
+          )
+        } else if (tactic === 'push_forward') {
+          nextTroopers = s.troopers.map(t => {
+            if (!t.active) return t
+            if (t.defpos === 'fortified') return { ...t, defpos: 'incover' as const }
+            if (t.defpos === 'incover') return { ...t, defpos: 'flanked' as const }
+            return t
+          })
+        } else if (tactic === 'fall_back') {
+          nextTroopers = s.troopers.map(t => {
+            if (!t.active) return t
+            if (t.offpos === 'flanking') return { ...t, offpos: 'engaged' as const }
+            if (t.offpos === 'engaged') return { ...t, offpos: 'limited' as const }
+            return t
+          })
+        }
+
+        return {
+          troopers: nextTroopers,
+          mission: {
+            ...s.mission,
+            engagement: {
+              ...eng,
+              pressure: newPressure,
+              pendingTactic: tactic,
+              nextExchangeModifiers: nextMods,
+            },
+          },
+        }
+      }),
+
+      beginNextExchange: () => set((s) => {
+        if (!s.mission || !s.mission.engagement) return s
+        const eng = s.mission.engagement
+        const mods = eng.nextExchangeModifiers
+
+        // Apply flankingDefPenalty to troopers
+        let nextTroopers = s.troopers
+        if (mods.flankingDefPenalty.length > 0) {
+          nextTroopers = s.troopers.map(t =>
+            mods.flankingDefPenalty.includes(t.id) ? { ...t, def_modifier: t.def_modifier - 1 } : t,
+          )
+        }
+
+        // Handle suppressed lifecycle: clear suppressed if trooper is fortified
+        nextTroopers = nextTroopers.map(t =>
+          t.active && t.suppressed && t.defpos === 'fortified' ? { ...t, suppressed: false } : t,
+        )
+
+        // Decrement radioStrikeCountdown
+        let newCountdown = eng.radioStrikeCountdown
+        if (newCountdown !== null) {
+          newCountdown = newCountdown > 0 ? newCountdown - 1 : 0
+        }
+
+        return {
+          troopers: nextTroopers,
+          mission: {
+            ...s.mission,
+            engagement: {
+              ...eng,
+              exchangeNumber: eng.exchangeNumber + 1,
+              step: 'intent' as const,
+              intents: {},
+              offenseResult: null,
+              defenseResults: {},
+              nextExchangeModifiers: { atkPenalty: 0, flankingDefPenalty: [], mustMove: [], flankedMustFallBack: [] },
+              tankActsThisExchange: !eng.tankActsThisExchange,
+              trooperMovedLastExchange: {},
+              radioStrikeCountdown: newCountdown,
+            },
+          },
+        }
+      }),
+
+      endEngagement: (_outcome) => set((s) => {
+        if (!s.mission) return s
+        return {
+          mission: {
+            ...s.mission,
+            phase: 'catch_breath' as const,
+          },
+        }
+      }),
+
+      advanceToNextSector: () => set((s) => {
+        if (!s.mission) return s
+        const sectors = s.mission.sectors
+        const currentIdx = sectors.findIndex(sec => sec.id === s.mission!.activeSectorId)
+        const nextSector = sectors.slice(currentIdx + 1).find(sec => sec.status === 'pending')
+        if (!nextSector) return s
+
+        const newSectors = sectors.map(sec => {
+          if (sec.id === s.mission!.activeSectorId) return { ...sec, status: 'cleared' as const }
+          if (sec.id === nextSector.id) return { ...sec, status: 'active' as const }
+          return sec
+        })
+
+        // Reset trooper mission state (not grit/ammo/status — those persist)
+        const nextTroopers = s.troopers.map(t => {
+          if (!t.active) return t
+          const jumpPackMax = t.special_gear === 'Jump Pack' ? maxUsesFor('Jump Pack') : t.special_gear_uses
+          return {
+            ...t,
+            suppressed: false,
+            def_modifier: 0,
+            special_gear_uses: jumpPackMax,
+          }
+        })
+
+        return {
+          troopers: nextTroopers,
+          mission: {
+            ...s.mission,
+            sectors: newSectors,
+            activeSectorId: nextSector.id,
+            advance_rolls: 0,
+            phase: 'advance' as const,
+            engagement: null,
+          },
+        }
+      }),
+
+      // ── Hard targets & attached forces ──────────────────────────────────────
+
+      applyHardTargetHit: (targetId, atCost, costTrooperId) => set((s) => {
+        if (!s.mission || !s.mission.engagement) return s
+        const hitsToApply = atCost ? 2 : 1
+        const newTargets = s.mission.engagement.hardTargets
+          .map(ht => ht.id === targetId ? { ...ht, currentHp: ht.currentHp - hitsToApply } : ht)
+          .filter(ht => ht.currentHp > 0)
+
+        let nextTroopers = s.troopers
+        if (atCost && costTrooperId) {
+          nextTroopers = s.troopers.map(t =>
+            t.id === costTrooperId ? { ...t, def_modifier: t.def_modifier - 1 } : t,
+          )
+        }
+
+        return {
+          troopers: nextTroopers,
+          mission: {
+            ...s.mission,
+            engagement: { ...s.mission.engagement, hardTargets: newTargets },
+          },
+        }
+      }),
+
+      updatePressure: (delta) => set((s) => {
+        if (!s.mission || !s.mission.engagement) return s
+        const activeSector = s.mission.sectors.find(sec => sec.id === s.mission!.activeSectorId)
+        const pressureCap = activeSector ? activeSector.tl + 1 : 5
+        const newPressure = Math.max(0, Math.min(s.mission.engagement.pressure + delta, pressureCap))
+        return {
+          mission: {
+            ...s.mission,
+            engagement: { ...s.mission.engagement, pressure: newPressure },
+          },
+        }
+      }),
+
+      commitAttachedForce: (forceId) => set((s) => {
+        if (!s.mission || !s.mission.engagement) return s
+        return {
+          mission: {
+            ...s.mission,
+            engagement: {
+              ...s.mission.engagement,
+              attachedForces: s.mission.engagement.attachedForces.map(af =>
+                af.id === forceId ? { ...af, committed: true } : af,
+              ),
+            },
+          },
+        }
+      }),
+
+      resolveAttachedForceDice: (forceId, results) => set((s) => {
+        if (!s.mission || !s.mission.engagement) return s
+        const losses = results.filter(r => r === 1).length
+        const updatedForces = s.mission.engagement.attachedForces
+          .map(af => {
+            if (af.id !== forceId) return af
+            const newDice = af.dice - losses
+            return { ...af, dice: newDice }
+          })
+          .filter(af => af.dice > 0)
+
+        return {
+          mission: {
+            ...s.mission,
+            engagement: { ...s.mission.engagement, attachedForces: updatedForces },
+          },
+        }
+      }),
+
+      addHardTarget: (ht) => set((s) => {
+        if (!s.mission || !s.mission.engagement) return s
+        return {
+          mission: {
+            ...s.mission,
+            engagement: {
+              ...s.mission.engagement,
+              hardTargets: [...s.mission.engagement.hardTargets, { ...ht, id: newId() }],
+            },
+          },
+        }
+      }),
+
+      addAttachedForce: (af) => set((s) => {
+        if (!s.mission || !s.mission.engagement) return s
+        return {
+          mission: {
+            ...s.mission,
+            engagement: {
+              ...s.mission.engagement,
+              attachedForces: [...s.mission.engagement.attachedForces, { ...af, id: newId() }],
+            },
+          },
+        }
+      }),
+
+      nullifyTactic: (trooperId) => set((s) => {
+        if (!s.mission || !s.mission.engagement) return s
+        return {
+          troopers: s.troopers.map(t =>
+            t.id === trooperId ? { ...t, grit: Math.max(0, t.grit - 1) } : t,
+          ),
+          mission: {
+            ...s.mission,
+            engagement: { ...s.mission.engagement, pendingTactic: null },
+          },
+        }
+      }),
 
       importState: (raw) => {
         if (!raw || typeof raw !== 'object') throw new Error('Invalid import: not an object')

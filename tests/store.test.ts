@@ -89,4 +89,128 @@ describe('store', () => {
     useStore.getState().importState({ troopers: [], mission: null, diceHistory: [] })
     expect(useStore.getState().troopers).toEqual([])
   })
+
+  // ── New engagement-flow actions ──────────────────────────────────────────────
+
+  it('addSector appends with pending status', () => {
+    useStore.setState({
+      mission: {
+        id: 'm', name: '', sectors: [], activeSectorId: '',
+        phase: 'advance', engagement: null, momentum: 0, advance_rolls: 0, stealth: false, notes: '',
+      },
+    })
+    useStore.getState().addSector({ name: 'Bravo', cover: 1, space: 1, tl: 2, weather: 0 })
+    const { sectors } = useStore.getState().mission!
+    expect(sectors).toHaveLength(1)
+    expect(sectors[0].status).toBe('pending')
+    expect(sectors[0].name).toBe('Bravo')
+    expect(sectors[0].id).toBeTruthy()
+  })
+
+  it('beginEngagement creates EngagementState and sets phase', () => {
+    useStore.setState({
+      mission: {
+        id: 'm', name: '',
+        sectors: [{ id: 's1', name: 'Alpha', cover: 1, space: 1, tl: 2, weather: 0, status: 'active' }],
+        activeSectorId: 's1', phase: 'advance', engagement: null,
+        momentum: 0, advance_rolls: 0, stealth: false, notes: '',
+      },
+    })
+    useStore.getState().beginEngagement()
+    const { mission } = useStore.getState()
+    expect(mission!.phase).toBe('engagement')
+    expect(mission!.engagement).not.toBeNull()
+    expect(mission!.engagement!.exchangeNumber).toBe(1)
+    expect(mission!.engagement!.step).toBe('intent')
+    expect(mission!.engagement!.pressure).toBe(0)
+    expect(mission!.engagement!.hardTargets).toEqual([])
+    expect(mission!.engagement!.attachedForces).toEqual([])
+    expect(mission!.engagement!.offenseResult).toBeNull()
+    expect(mission!.engagement!.pendingTactic).toBeNull()
+    expect(mission!.engagement!.nextExchangeModifiers.atkPenalty).toBe(0)
+    expect(mission!.engagement!.tankActsThisExchange).toBe(false)
+  })
+
+  it('resolveDefenseRoll with injury advances trooper status', () => {
+    useStore.setState({
+      troopers: [makeTrooper({ id: 't1', status: 'ok' })],
+      mission: {
+        id: 'm', name: '',
+        sectors: [{ id: 's1', name: 'Alpha', cover: 1, space: 1, tl: 2, weather: 0, status: 'active' }],
+        activeSectorId: 's1', phase: 'engagement',
+        engagement: {
+          exchangeNumber: 1, step: 'defense', pressure: 0, hardTargets: [], attachedForces: [],
+          intents: {}, offenseResult: null, defenseResults: {}, pendingTactic: null,
+          radioStrikeCountdown: null,
+          nextExchangeModifiers: { atkPenalty: 0, flankingDefPenalty: [], mustMove: [], flankedMustFallBack: [] },
+          momentumGainedLastExchange: false, trooperDiedLastExchange: false,
+          trooperMovedLastExchange: {}, tankActsThisExchange: false,
+        },
+        momentum: 0, advance_rolls: 0, stealth: false, notes: '',
+      },
+    })
+    // 1 injury: ok → grazed
+    useStore.getState().resolveDefenseRoll('t1', { roll: 2, outcome: 'direct_fire', resolution: 'injury', injuryCount: 1 })
+    expect(useStore.getState().troopers[0].status).toBe('grazed')
+    // 2 injuries: grazed → wounded → bleedingout
+    useStore.getState().resolveDefenseRoll('t1', { roll: 1, outcome: 'direct_fire', resolution: 'injury', injuryCount: 2 })
+    expect(useStore.getState().troopers[0].status).toBe('bleedingout')
+    // injury on bleedingout stays bleedingout
+    useStore.getState().resolveDefenseRoll('t1', { roll: 1, outcome: 'direct_fire', resolution: 'injury', injuryCount: 1 })
+    expect(useStore.getState().troopers[0].status).toBe('bleedingout')
+  })
+
+  it('advanceToNextSector activates next sector and resets advance_rolls', () => {
+    useStore.setState({
+      troopers: [makeTrooper({ id: 'a', suppressed: true, def_modifier: -2 })],
+      mission: {
+        id: 'm', name: '',
+        sectors: [
+          { id: 's1', name: 'Alpha', cover: 1, space: 1, tl: 2, weather: 0, status: 'active' },
+          { id: 's2', name: 'Bravo', cover: 2, space: 2, tl: 3, weather: 0, status: 'pending' },
+        ],
+        activeSectorId: 's1', phase: 'catch_breath',
+        engagement: null, momentum: 1, advance_rolls: 4, stealth: false, notes: '',
+      },
+    })
+    useStore.getState().advanceToNextSector()
+    const s = useStore.getState()
+    expect(s.mission!.activeSectorId).toBe('s2')
+    expect(s.mission!.advance_rolls).toBe(0)
+    expect(s.mission!.phase).toBe('advance')
+    expect(s.mission!.sectors.find(sec => sec.id === 's1')!.status).toBe('cleared')
+    expect(s.mission!.sectors.find(sec => sec.id === 's2')!.status).toBe('active')
+    // Trooper suppressed reset, def_modifier reset
+    expect(s.troopers[0].suppressed).toBe(false)
+    expect(s.troopers[0].def_modifier).toBe(0)
+    // Grit/ammo/status untouched
+    expect(s.troopers[0].grit).toBe(3)
+    expect(s.troopers[0].status).toBe('ok')
+  })
+
+  it('endEngagement sets phase to catch_breath and keeps engagement data', () => {
+    useStore.setState({
+      mission: {
+        id: 'm', name: '',
+        sectors: [{ id: 's1', name: 'Alpha', cover: 1, space: 1, tl: 2, weather: 0, status: 'active' }],
+        activeSectorId: 's1', phase: 'engagement',
+        engagement: {
+          exchangeNumber: 3, step: 'enemy_tactics', pressure: 2, hardTargets: [], attachedForces: [],
+          intents: {}, offenseResult: null, defenseResults: {}, pendingTactic: null,
+          radioStrikeCountdown: 1,
+          nextExchangeModifiers: { atkPenalty: 0, flankingDefPenalty: [], mustMove: [], flankedMustFallBack: [] },
+          momentumGainedLastExchange: true, trooperDiedLastExchange: false,
+          trooperMovedLastExchange: {}, tankActsThisExchange: false,
+        },
+        momentum: 2, advance_rolls: 1, stealth: false, notes: '',
+      },
+    })
+    useStore.getState().endEngagement('victory')
+    const { mission } = useStore.getState()
+    expect(mission!.phase).toBe('catch_breath')
+    // Engagement state preserved (CatchBreathPanel may need radioStrikeCountdown)
+    expect(mission!.engagement).not.toBeNull()
+    expect(mission!.engagement!.exchangeNumber).toBe(3)
+    expect(mission!.engagement!.radioStrikeCountdown).toBe(1)
+  })
 })
