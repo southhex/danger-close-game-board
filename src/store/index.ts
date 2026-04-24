@@ -57,7 +57,6 @@ interface Store extends AppState {
     tactic: EnemyTactic
     repositionTrooperId?: string
     scatterTrooperId?: string
-    sacPenaltyTrooperId?: string
   }) => void
   beginNextExchange: () => void
   endEngagement: (outcome: 'victory' | 'defeat' | 'disengage') => void
@@ -514,7 +513,7 @@ export const useStore = create<Store>()(
 
       applyHardTargetHit: (targetId, atCost, costTrooperId) => set((s) => {
         if (!s.mission || !s.mission.engagement) return s
-        const hitsToApply = atCost ? 2 : 1
+        const hitsToApply = 1
         const newTargets = s.mission.engagement.hardTargets
           .map(ht => ht.id === targetId ? { ...ht, currentHp: ht.currentHp - hitsToApply } : ht)
           .filter(ht => ht.currentHp > 0)
