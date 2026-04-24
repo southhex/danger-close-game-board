@@ -3,6 +3,10 @@ import { sectorNotation } from '../../utils/gameRules'
 import HardTargetPanel from './HardTargetPanel'
 import AttachedForcePanel from './AttachedForcePanel'
 import IntentStep from './IntentStep'
+import OffenseStep from './OffenseStep'
+import DefenseStep from './DefenseStep'
+import MomentumStep from './MomentumStep'
+import EnemyTacticsStep from './EnemyTacticsStep'
 import type { EngagementState } from '../../types'
 
 const STEPS: EngagementState['step'][] = ['intent', 'offense', 'defense', 'momentum', 'enemy_tactics']
@@ -30,6 +34,7 @@ export default function EngagementPanel() {
   const allTroopers = useStore(s => s.troopers)
   const endEngagement = useStore(s => s.endEngagement)
   const updatePressure = useStore(s => s.updatePressure)
+  const addRoll = useStore(s => s.addRoll)
 
   if (!mission || !mission.engagement) return null
 
@@ -106,16 +111,16 @@ export default function EngagementPanel() {
           />
         )}
         {eng.step === 'offense' && (
-          <div className="bg-surface border border-border p-3 text-muted text-[11px]">OFFENSE STEP</div>
+          <OffenseStep engagement={eng} troopers={activeTroopers} sector={activeSector} addRoll={addRoll} />
         )}
         {eng.step === 'defense' && (
-          <div className="bg-surface border border-border p-3 text-muted text-[11px]">DEFENSE STEP</div>
+          <DefenseStep engagement={eng} troopers={activeTroopers} sector={activeSector} addRoll={addRoll} />
         )}
         {eng.step === 'momentum' && (
-          <div className="bg-surface border border-border p-3 text-muted text-[11px]">MOMENTUM STEP</div>
+          <MomentumStep engagement={eng} troopers={activeTroopers} sector={activeSector} />
         )}
         {eng.step === 'enemy_tactics' && (
-          <div className="bg-surface border border-border p-3 text-muted text-[11px]">ENEMY TACTICS STEP</div>
+          <EnemyTacticsStep engagement={eng} troopers={activeTroopers} sector={activeSector} addRoll={addRoll} />
         )}
       </div>
 
