@@ -26,6 +26,7 @@ dist-ssr
 # Tooling
 .claude/
 .superpowers/
+.worktrees/
 
 # Reference material
 EXAMPLE - dicebag/
