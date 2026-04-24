@@ -14,7 +14,7 @@ function mkTrooper(p: Partial<Trooper> = {}): Trooper {
   return {
     id: p.id ?? 't1', name: 'X', fullname: '', callsign: '', active: true,
     perkpoints: 0, mobility: 4, armor: '', weapon: '', special_weapon: '',
-    special_gear: '', perk: '', notes: '', grit: 3, ammo: 3, status: 'ok',
+    special_gear: '', perks: [], notes: '', grit: 3, ammo: 3, grit_max: 1, ammo_max: 3, status: 'ok',
     offpos: 'engaged', defpos: 'incover', suppressed: false, def_modifier: 0,
     special_weapon_uses: -1, special_gear_uses: -1, ...p,
   }
