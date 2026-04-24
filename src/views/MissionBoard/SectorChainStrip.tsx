@@ -10,8 +10,9 @@ function statusDotColor(status: MissionSector['status']): string {
 }
 
 export default function SectorChainStrip() {
-  const sectors = useStore(s => s.mission?.sectors)
-  const activeSectorId = useStore(s => s.mission?.activeSectorId)
+  const mission = useStore(s => s.mission)
+  const sectors = mission?.sectors
+  const activeSectorId = mission?.activeSectorId
 
   const [editSector, setEditSector] = useState<MissionSector | undefined>(undefined)
   const [modalOpen, setModalOpen] = useState(false)

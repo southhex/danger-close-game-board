@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Modal, ConfirmDialog } from '../../components'
 import { useStore } from '../../store'
 import type { MissionSector } from '../../types'
@@ -47,16 +47,14 @@ export default function SectorEditorModal({ sector, open, onClose }: Props) {
       : { ...DEFAULTS }
   )
 
-  // Reset form when modal opens with new sector data
-  const [lastSectorId, setLastSectorId] = useState<string | undefined>(sector?.id)
-  if (open && sector?.id !== lastSectorId) {
-    setLastSectorId(sector?.id)
-    setForm(
-      sector
+  useEffect(() => {
+    if (open) {
+      setForm(sector
         ? { name: sector.name, cover: sector.cover, space: sector.space, tl: sector.tl, weather: sector.weather }
-        : { ...DEFAULTS }
-    )
-  }
+        : { name: '', cover: 1 as const, space: 1 as const, tl: 2 as const, weather: 0 as const }
+      )
+    }
+  }, [open, sector])
 
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false)
 
