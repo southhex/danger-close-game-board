@@ -4,8 +4,11 @@ import {
   momentumForResult, defposForResult, offposFromCheck, mobilityCheck,
   clampMomentum, fortifiedLimit, flankingLimit, canSetDefpos, canSetOffpos,
   stealthShouldClear, infiltrationPicks, woundCount, clampUses, lookupRollTable,
+  sectorNotation, offenseRollOutcome, momentumDeltaFromOutcome, defRollOutcome,
+  injuryDiceForTL, enemyTacticFromRoll, pressureIncreases, hardTargetMaxHp,
+  hardTargetDefHits, calcDefPool, calcFireAtk,
 } from '../src/utils/gameRules'
-import type { Trooper } from '../src/types'
+import type { Trooper, MissionSector, HardTarget } from '../src/types'
 
 function mkTrooper(p: Partial<Trooper> = {}): Trooper {
   return {
@@ -177,6 +180,19 @@ describe('clampUses', () => {
   })
 })
 
+function mkSector(p: Partial<MissionSector> = {}): MissionSector {
+  return {
+    id: 's1', name: 'Alpha', cover: 1, space: 2, tl: 2, weather: 0,
+    status: 'active', ...p,
+  }
+}
+
+function mkHardTarget(p: Partial<HardTarget> = {}): HardTarget {
+  return {
+    id: 'ht1', type: 'brute', name: 'Brute', maxHp: 1, currentHp: 1, isGround: true, ...p,
+  }
+}
+
 describe('lookupRollTable', () => {
   const plasmaEntries = [
     { min: 1, max: 1, result: '+2 Injury — weapon destroyed' },
@@ -197,5 +213,178 @@ describe('lookupRollTable', () => {
   it('returns — for out-of-range roll', () => {
     expect(lookupRollTable(plasmaEntries, 0)).toBe('—')
     expect(lookupRollTable(plasmaEntries, 7)).toBe('—')
+  })
+})
+
+// ─── Engagement flow tests ─────────────────────────────────────────────────
+
+describe('sectorNotation', () => {
+  it('formats name + C/S/TL', () => {
+    expect(sectorNotation(mkSector({ name: 'Alpha', cover: 1, space: 2, tl: 2 }))).toBe('Alpha C1/S2/TL2')
+  })
+  it('works with all-zero values at minimum', () => {
+    expect(sectorNotation(mkSector({ name: 'Bravo', cover: 0, space: 0, tl: 1 }))).toBe('Bravo C0/S0/TL1')
+  })
+})
+
+describe('offenseRollOutcome', () => {
+  it('1 → pushed_back', () => { expect(offenseRollOutcome(1)).toBe('pushed_back') })
+  it('3 → pushed_back', () => { expect(offenseRollOutcome(3)).toBe('pushed_back') })
+  it('4 → hold_position', () => { expect(offenseRollOutcome(4)).toBe('hold_position') })
+  it('5 → hold_position', () => { expect(offenseRollOutcome(5)).toBe('hold_position') })
+  it('6 → success', () => { expect(offenseRollOutcome(6)).toBe('success') })
+  it('10 → success', () => { expect(offenseRollOutcome(10)).toBe('success') })
+})
+
+describe('momentumDeltaFromOutcome', () => {
+  it('pushed_back → -1', () => { expect(momentumDeltaFromOutcome('pushed_back')).toBe(-1) })
+  it('hold_position → 0', () => { expect(momentumDeltaFromOutcome('hold_position')).toBe(0) })
+  it('success_at_cost → 1', () => { expect(momentumDeltaFromOutcome('success_at_cost')).toBe(1) })
+  it('success → 1', () => { expect(momentumDeltaFromOutcome('success')).toBe(1) })
+})
+
+describe('defRollOutcome', () => {
+  it('flanked: 1–4 → direct_fire, 5–6 → safe', () => {
+    expect(defRollOutcome(1, 'flanked')).toBe('direct_fire')
+    expect(defRollOutcome(4, 'flanked')).toBe('direct_fire')
+    expect(defRollOutcome(5, 'flanked')).toBe('safe')
+    expect(defRollOutcome(6, 'flanked')).toBe('safe')
+  })
+  it('incover: 1–3 → direct_fire, 4–6 → safe', () => {
+    expect(defRollOutcome(3, 'incover')).toBe('direct_fire')
+    expect(defRollOutcome(4, 'incover')).toBe('safe')
+  })
+  it('fortified: 1–2 → direct_fire, 3–6 → safe', () => {
+    expect(defRollOutcome(2, 'fortified')).toBe('direct_fire')
+    expect(defRollOutcome(3, 'fortified')).toBe('safe')
+    expect(defRollOutcome(6, 'fortified')).toBe('safe')
+  })
+})
+
+describe('injuryDiceForTL', () => {
+  it('TL 1 → "1"', () => { expect(injuryDiceForTL(1)).toBe('1') })
+  it('TL 2 → "1d2"', () => { expect(injuryDiceForTL(2)).toBe('1d2') })
+  it('TL 4 → "1d4"', () => { expect(injuryDiceForTL(4)).toBe('1d4') })
+})
+
+describe('enemyTacticFromRoll', () => {
+  it('2 → none', () => { expect(enemyTacticFromRoll(2)).toBe('none') })
+  it('4 → none', () => { expect(enemyTacticFromRoll(4)).toBe('none') })
+  it('5 → reposition', () => { expect(enemyTacticFromRoll(5)).toBe('reposition') })
+  it('7 → pinned_down', () => { expect(enemyTacticFromRoll(7)).toBe('pinned_down') })
+  it('10 → fall_back', () => { expect(enemyTacticFromRoll(10)).toBe('fall_back') })
+  it('12 → fall_back', () => { expect(enemyTacticFromRoll(12)).toBe('fall_back') })
+})
+
+describe('pressureIncreases', () => {
+  it('3 → false', () => { expect(pressureIncreases(3)).toBe(false) })
+  it('4 → true', () => { expect(pressureIncreases(4)).toBe(true) })
+  it('6 → true', () => { expect(pressureIncreases(6)).toBe(true) })
+})
+
+describe('hardTargetMaxHp', () => {
+  it('brute → 1', () => { expect(hardTargetMaxHp('brute')).toBe(1) })
+  it('sniper → 1', () => { expect(hardTargetMaxHp('sniper')).toBe(1) })
+  it('grenadier → 1', () => { expect(hardTargetMaxHp('grenadier')).toBe(1) })
+  it('gun_nest → 2', () => { expect(hardTargetMaxHp('gun_nest')).toBe(2) })
+  it('tank → 4', () => { expect(hardTargetMaxHp('tank')).toBe(4) })
+})
+
+describe('hardTargetDefHits', () => {
+  it('tank hits all active non-dead troopers with -1', () => {
+    const squad = [
+      mkTrooper({ id: 'a' }),
+      mkTrooper({ id: 'b' }),
+      mkTrooper({ id: 'c', status: 'dead' }),
+    ]
+    const result = hardTargetDefHits(mkHardTarget({ type: 'tank' }), squad)
+    expect(result).toEqual({ a: -1, b: -1 })
+  })
+  it('brute hits first 2 active troopers with -1', () => {
+    const squad = [mkTrooper({ id: 'a' }), mkTrooper({ id: 'b' }), mkTrooper({ id: 'c' })]
+    const result = hardTargetDefHits(mkHardTarget({ type: 'brute' }), squad)
+    expect(result).toEqual({ a: -1, b: -1 })
+  })
+  it('sniper prefers flanked trooper with -2', () => {
+    const squad = [
+      mkTrooper({ id: 'a', defpos: 'incover' }),
+      mkTrooper({ id: 'b', defpos: 'flanked' }),
+    ]
+    const result = hardTargetDefHits(mkHardTarget({ type: 'sniper' }), squad)
+    expect(result).toEqual({ b: -2 })
+  })
+  it('sniper falls back to first trooper if no flanked', () => {
+    const squad = [mkTrooper({ id: 'a', defpos: 'incover' })]
+    const result = hardTargetDefHits(mkHardTarget({ type: 'sniper' }), squad)
+    expect(result).toEqual({ a: -2 })
+  })
+})
+
+describe('calcDefPool', () => {
+  it('base 1 + covering fire + modifier', () => {
+    expect(calcDefPool(mkTrooper({ armor: '' }), 2, 0)).toBe(3)
+  })
+  it('Light Armor gives -1', () => {
+    expect(calcDefPool(mkTrooper({ armor: 'Light Armor' }), 0, 0)).toBe(1)  // 1 + -1 = 0, clamped to 1
+  })
+  it('Heavy Armor gives +1', () => {
+    expect(calcDefPool(mkTrooper({ armor: 'Heavy Armor' }), 0, 0)).toBe(2)
+  })
+  it('minimum 1', () => {
+    expect(calcDefPool(mkTrooper({ armor: 'Light Armor' }), 0, -5)).toBe(1)
+  })
+})
+
+describe('calcFireAtk', () => {
+  it('base ATK for engaged trooper is 1', () => {
+    const result = calcFireAtk({
+      trooper: mkTrooper({ offpos: 'engaged', defpos: 'incover', weapon: '', special_weapon: '' }),
+      sector: mkSector(),
+      lastMoved: false,
+      atkPenalty: 0,
+    })
+    expect(result.base).toBe(1)
+    expect(result.flanking).toBe(0)
+    expect(result.limited).toBe(0)
+    expect(result.total).toBe(1)
+  })
+  it('flanking adds flankingBonus', () => {
+    const result = calcFireAtk({
+      trooper: mkTrooper({ offpos: 'flanking', mobility: 4, status: 'ok' }),
+      sector: mkSector(),
+      lastMoved: false,
+      atkPenalty: 0,
+    })
+    expect(result.flanking).toBe(2)  // mob 4 → +2
+    expect(result.total).toBe(3)     // base 1 + flanking 2
+  })
+  it('limited gives -1', () => {
+    const result = calcFireAtk({
+      trooper: mkTrooper({ offpos: 'limited' }),
+      sector: mkSector(),
+      lastMoved: false,
+      atkPenalty: 0,
+    })
+    expect(result.limited).toBe(-1)
+    expect(result.total).toBe(0)  // 1 + -1 = 0
+  })
+  it('atkPenalty reduces total', () => {
+    const result = calcFireAtk({
+      trooper: mkTrooper({ offpos: 'engaged' }),
+      sector: mkSector(),
+      lastMoved: false,
+      atkPenalty: 1,
+    })
+    expect(result.atkPenalty).toBe(-1)
+    expect(result.total).toBe(0)
+  })
+  it('total never goes below 0', () => {
+    const result = calcFireAtk({
+      trooper: mkTrooper({ offpos: 'limited' }),
+      sector: mkSector(),
+      lastMoved: false,
+      atkPenalty: 5,
+    })
+    expect(result.total).toBe(0)
   })
 })

@@ -1,5 +1,6 @@
 import type {
   Trooper, AdvanceResult, OffensivePosition, DefensivePosition, RollTableEntry,
+  MissionSector, HardTarget, OffenseResult, EnemyTactic,
 } from '../types'
 
 export function effectiveMobility(t: Trooper): number {
@@ -139,4 +140,145 @@ export function infiltrationPicks(passCount: number, stealthWasActive: boolean):
 export function lookupRollTable(entries: RollTableEntry[], roll: number): string {
   const entry = entries.find(e => roll >= e.min && roll <= e.max)
   return entry?.result ?? '—'
+}
+
+// ─── Engagement flow pure functions ────────────────────────────────────────
+
+export function sectorNotation(sector: MissionSector): string {
+  return `${sector.name} C${sector.cover}/S${sector.space}/TL${sector.tl}`
+}
+
+export function offenseRollOutcome(highest: number): OffenseResult['outcome'] {
+  if (highest <= 3) return 'pushed_back'
+  if (highest <= 5) return 'hold_position'
+  return 'success'
+}
+
+export function momentumDeltaFromOutcome(outcome: OffenseResult['outcome']): number {
+  if (outcome === 'pushed_back') return -1
+  if (outcome === 'hold_position') return 0
+  return 1  // success_at_cost and success both give +1
+}
+
+export function defRollOutcome(roll: number, defPos: DefensivePosition): 'safe' | 'direct_fire' {
+  if (defPos === 'flanked') return roll >= 5 ? 'safe' : 'direct_fire'
+  if (defPos === 'incover') return roll >= 4 ? 'safe' : 'direct_fire'
+  return roll >= 3 ? 'safe' : 'direct_fire'  // fortified
+}
+
+export function injuryDiceForTL(tl: number): string {
+  if (tl <= 1) return '1'
+  return `1d${tl}`
+}
+
+export function enemyTacticFromRoll(total: number): EnemyTactic {
+  if (total <= 4) return 'none'
+  if (total === 5) return 'reposition'
+  if (total === 6) return 'scatter'
+  if (total === 7) return 'pinned_down'
+  if (total === 8) return 'encircle'
+  if (total === 9) return 'push_forward'
+  return 'fall_back'
+}
+
+export function pressureIncreases(naturalD6: number): boolean {
+  return naturalD6 >= 4
+}
+
+export function hardTargetMaxHp(type: HardTarget['type']): number {
+  if (type === 'brute') return 1
+  if (type === 'sniper') return 1
+  if (type === 'grenadier') return 1
+  if (type === 'gun_nest') return 2
+  return 4  // tank
+}
+
+export function hardTargetDefHits(
+  target: HardTarget,
+  troopers: Trooper[],
+): Record<string, number> {
+  const active = troopers.filter(t => t.active && t.status !== 'dead')
+  const result: Record<string, number> = {}
+
+  if (target.type === 'tank') {
+    for (const t of active) result[t.id] = -1
+    return result
+  }
+
+  if (target.type === 'brute') {
+    const targets = active.slice(0, 2)
+    for (const t of targets) result[t.id] = -1
+    return result
+  }
+
+  if (target.type === 'sniper') {
+    const preferred = active.find(t => t.defpos === 'flanked') ?? active[0]
+    if (preferred) result[preferred.id] = -2
+    return result
+  }
+
+  if (target.type === 'grenadier') {
+    const preferred = active.find(t => t.defpos === 'fortified') ?? active[0]
+    if (preferred) result[preferred.id] = -2
+    return result
+  }
+
+  // gun_nest: prefers Flanking (offensive position)
+  const preferred = active.find(t => t.offpos === 'flanking') ?? active[0]
+  if (preferred) result[preferred.id] = -1
+  return result
+}
+
+function armorDefBonus(armor: string): number {
+  if (armor === 'Light Armor') return -1
+  if (armor === 'Heavy Armor') return 1
+  return 0
+}
+
+export function calcDefPool(
+  trooper: Trooper,
+  coveringFireBonus: number,
+  defModifier: number,
+): number {
+  return Math.max(1, 1 + armorDefBonus(trooper.armor) + coveringFireBonus + defModifier)
+}
+
+function weaponAtkBonus(trooper: Trooper, sector: MissionSector, lastMoved: boolean): number {
+  switch (trooper.weapon) {
+    case 'Carbine':
+      if (trooper.offpos === 'engaged' && sector.space === 0) return 1
+      if (trooper.offpos === 'engaged' && sector.space === 2) return -1
+      return 0
+    case 'Marksman Rifle':
+      if (trooper.offpos === 'engaged' && sector.cover === 0) return 1
+      if (trooper.offpos === 'engaged' && sector.cover === 2) return -1
+      return 0
+  }
+  switch (trooper.special_weapon) {
+    case 'Sniper Rifle': {
+      let bonus = trooper.defpos === 'fortified' ? 1 : 0
+      if (trooper.defpos === 'fortified' && !lastMoved) bonus += 1
+      return bonus
+    }
+    case 'HMG':
+      return trooper.defpos === 'fortified' ? 1 : 0
+  }
+  return 0
+}
+
+export function calcFireAtk(args: {
+  trooper: Trooper
+  sector: MissionSector
+  lastMoved: boolean
+  atkPenalty: number
+}): { base: number; flanking: number; weapon: number; limited: number; atkPenalty: number; total: number } {
+  const base = 1
+  const flanking = args.trooper.offpos === 'flanking'
+    ? flankingBonus(effectiveMobility(args.trooper))
+    : 0
+  const weapon = weaponAtkBonus(args.trooper, args.sector, args.lastMoved)
+  const limited = args.trooper.offpos === 'limited' ? -1 : 0
+  const atkPenalty = -args.atkPenalty
+  const total = Math.max(0, base + flanking + weapon + limited + atkPenalty)
+  return { base, flanking, weapon, limited, atkPenalty, total }
 }
