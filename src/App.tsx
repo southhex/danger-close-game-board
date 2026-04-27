@@ -1,4 +1,5 @@
 import { type ComponentType } from 'react'
+import { ToastProvider } from './components'
 import { useStore } from './store'
 import { useMediaQuery } from './hooks/useMediaQuery'
 import type { View } from './types'
@@ -8,62 +9,127 @@ import Settings from './views/Settings/Settings'
 import DiceTray from './views/DiceTray/DiceTray'
 
 const NAV = [
-  { id: 'barracks', label: 'BKS', glyph: '⊞', title: 'Barracks' },
-  { id: 'mission', label: 'MSN', glyph: '◈', title: 'Mission' },
-  { id: 'settings', label: 'SET', glyph: '⚙', title: 'Settings' },
+  { id: 'barracks', label: 'Barracks', glyph: '⊞' },
+  { id: 'mission',  label: 'Mission',  glyph: '◈' },
+  { id: 'dice',     label: 'Dice',     glyph: '⬡' },
+  { id: 'settings', label: 'Settings', glyph: '⚙' },
 ] as const
 
-export default function App() {
-  const view = useStore(s => s.currentView)
-  const setView = useStore(s => s.setView)
-  const diceOpen = useStore(s => s.diceTrayOpen)
-  const setDice = useStore(s => s.setDiceTrayOpen)
-  const isDesktop = useMediaQuery('(min-width: 768px)')
+type NavId = typeof NAV[number]['id']
 
-  const VIEW_COMPONENTS: Record<View, ComponentType> = {
-    barracks: Barracks,
-    mission: MissionBoard,
-    settings: Settings,
+const VIEW_COMPONENTS: Record<Exclude<View, 'dice'>, ComponentType> = {
+  barracks: Barracks,
+  mission:  MissionBoard,
+  settings: Settings,
+}
+
+export default function App() {
+  const view        = useStore(s => s.currentView)
+  const setView     = useStore(s => s.setView)
+  const diceOpen    = useStore(s => s.diceTrayOpen)
+  const setDice     = useStore(s => s.setDiceTrayOpen)
+  const allTroopers = useStore(s => s.troopers)
+  const mission     = useStore(s => s.mission)
+  const isDesktop   = useMediaQuery('(min-width: 768px)')
+
+  const activeTrooperCount = allTroopers.filter(t => t.active).length
+
+  const handleNav = (id: NavId) => {
+    if (id === 'dice') { setDice(!diceOpen); return }
+    setView(id as View)
   }
-  const CurrentView = VIEW_COMPONENTS[view]
+
+  const pageTitle = () => {
+    if (view === 'barracks') return { title: 'Barracks', sub: `${activeTrooperCount} troopers` }
+    if (view === 'mission')  return { title: 'Mission', sub: mission ? mission.name : 'No active mission' }
+    return { title: 'Settings', sub: null }
+  }
+  const { title, sub } = pageTitle()
+  const CurrentView = VIEW_COMPONENTS[view as Exclude<View, 'dice'>] ?? Barracks
 
   return (
-    <div className="h-screen overflow-hidden bg-bg text-ink flex" style={{ height: '100dvh' }}>
-      {isDesktop && (
-        <aside className="w-14 bg-surface border-r border-border flex flex-col items-stretch py-3 flex-shrink-0">
-          <div className="text-ok text-center text-[10px] tracking-[0.1em] pb-2 mb-4 border-b border-border">DC</div>
-          {NAV.map(n => (
-            <button key={n.id} onClick={() => setView(n.id)}
-              className={`py-2 text-center border-l-2 ${view === n.id ? 'border-ok text-ok' : 'border-transparent text-muted'} hover:text-ink`}>
-              <div className="text-base leading-none">{n.glyph}</div>
-              <div className="text-[9px] mt-1">{n.label}</div>
-            </button>
-          ))}
-        </aside>
-      )}
+    <ToastProvider>
+      <div className="overflow-hidden bg-bg text-ink flex" style={{ height: '100dvh' }}>
 
-      <main className="flex-1 min-w-0 flex flex-col">
-        <header className="flex items-center justify-between bg-surface border-b border-border px-4 py-3 flex-shrink-0">
-          <div className="lbl">{NAV.find(n => n.id === view)?.title.toUpperCase()}</div>
-          <button onClick={() => setDice(!diceOpen)} className={`text-lg leading-none ${diceOpen ? 'text-ok' : 'text-warn'}`}>⬡</button>
-        </header>
-        <div className="flex-1 overflow-auto">
-          <CurrentView />
-        </div>
-        {!isDesktop && (
-          <nav className="flex bg-surface border-t border-border">
-            {NAV.map(n => (
-              <button key={n.id} onClick={() => setView(n.id)}
-                className={`flex-1 py-2 text-center ${view === n.id ? 'text-ok' : 'text-muted'}`}>
-                <div className="text-base leading-none">{n.glyph}</div>
-                <div className="text-[9px] mt-1">{n.label}</div>
-              </button>
-            ))}
-          </nav>
+        {/* Desktop sidebar */}
+        {isDesktop && (
+          <aside className="w-40 bg-surface border-r border-border flex flex-col py-4 px-3 flex-shrink-0">
+            {/* Brand */}
+            <div className="flex items-center gap-2.5 px-1.5 pb-4 mb-2 border-b border-border">
+              <div className="w-[26px] h-[26px] rounded-md bg-accent text-bg flex items-center justify-center font-bold text-[11px] tracking-tight flex-shrink-0">
+                DC
+              </div>
+              <div>
+                <div className="text-[13px] font-semibold leading-tight">Danger Close</div>
+                <div className="text-[10.5px] text-muted">Play aid</div>
+              </div>
+            </div>
+
+            {/* Nav */}
+            {NAV.map(n => {
+              const isActive = n.id === 'dice' ? diceOpen : view === n.id
+              return (
+                <button key={n.id} onClick={() => handleNav(n.id)}
+                  className={`flex items-center gap-2.5 px-2.5 py-2 rounded-md mb-0.5 text-[13px] w-full text-left
+                    ${isActive
+                      ? 'bg-[color-mix(in_oklch,theme(colors.accent)_14%,transparent)] text-accent font-semibold'
+                      : 'text-ink-dim font-medium hover:bg-surface2'
+                    }`}>
+                  <span className="text-base leading-none w-4 text-center">{n.glyph}</span>
+                  <span className="flex-1">{n.label}</span>
+                  {n.id === 'barracks' && (
+                    <span className="text-[11px] text-subtle font-mono">{activeTrooperCount}</span>
+                  )}
+                  {n.id === 'mission' && mission && (
+                    <span className="text-[9px] font-bold tracking-wide bg-accent text-bg px-1.5 py-0.5 rounded-xs">
+                      LIVE
+                    </span>
+                  )}
+                </button>
+              )
+            })}
+          </aside>
         )}
-      </main>
 
-      {diceOpen && <DiceTray />}
-    </div>
+        {/* Main */}
+        <main className="flex-1 min-w-0 flex flex-col">
+          {/* Header */}
+          <header className="flex items-center justify-between bg-bg border-b border-border px-5 py-2.5 flex-shrink-0">
+            <div>
+              <div className="text-[15px] font-bold leading-tight">{title}</div>
+              {sub && <div className="text-[11px] text-muted mt-0.5">{sub}</div>}
+            </div>
+            <button onClick={() => setDice(!diceOpen)}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-sm border text-[12px] font-medium
+                ${diceOpen ? 'border-accent text-accent' : 'border-border text-ink-dim hover:text-ink'}`}>
+              ⬡ Dice
+            </button>
+          </header>
+
+          <div className="flex-1 overflow-auto">
+            <CurrentView />
+          </div>
+
+          {/* Mobile bottom nav */}
+          {!isDesktop && (
+            <nav className="flex bg-surface border-t border-border">
+              {NAV.map(n => {
+                const isActive = n.id === 'dice' ? diceOpen : view === n.id
+                return (
+                  <button key={n.id} onClick={() => handleNav(n.id)}
+                    className={`flex-1 flex flex-col items-center gap-1 py-2
+                      ${isActive ? 'text-accent font-semibold' : 'text-muted font-medium'}`}>
+                    <span className="text-lg leading-none">{n.glyph}</span>
+                    <span className="text-[10.5px]">{n.label}</span>
+                  </button>
+                )
+              })}
+            </nav>
+          )}
+        </main>
+
+        {diceOpen && <DiceTray />}
+      </div>
+    </ToastProvider>
   )
 }
