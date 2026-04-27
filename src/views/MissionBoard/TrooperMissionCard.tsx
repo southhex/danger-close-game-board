@@ -42,23 +42,21 @@ const TrooperMissionCard = memo(function TrooperMissionCard({
   const offOpts = useMemo(() => OFFPOS.map(o => ({
     ...o,
     disabled: o.value !== trooper.offpos && !canSetOffpos(trooper, o.value, squad, space),
-  })), [trooper.offpos, trooper, squad, space])
+  })), [trooper, squad, space])
 
   const defOpts = useMemo(() => DEFPOS.map(o => ({
     ...o,
     disabled: o.value !== trooper.defpos && !canSetDefpos(trooper, o.value, squad, cover),
-  })), [trooper.defpos, trooper, squad, cover])
+  })), [trooper, squad, cover])
 
   return (
-    <div
-      className={`bg-bg border flex-shrink-0 w-[180px] snap-start ${dim} ${expanded ? 'border-ok' : 'border-border'}`}
-      style={{ borderTop: `3px solid ${color}` }}
-    >
-      <div className="p-1.5 flex flex-col gap-1">
+    <div className={`bg-bg border flex-shrink-0 w-[180px] snap-start rounded-xl overflow-hidden ${dim} ${expanded ? 'border-accent' : 'border-border'}`}>
+      <div style={{ height: 3, background: color }} />
+      <div className="p-2.5 flex flex-col gap-1.5">
         {/* Header: name / callsign / suppression dot / expand */}
         <div className="flex items-center justify-between gap-1">
           <div className="flex items-baseline gap-1.5 min-w-0">
-            <div className="text-ok text-[11px] tracking-wider truncate">{trooper.name.toUpperCase()}</div>
+            <div className="text-[13px] font-semibold truncate">{trooper.name}</div>
             <div className="text-[9px] text-muted shrink-0">{trooper.callsign}</div>
           </div>
           <div className="flex items-center gap-1 shrink-0">
@@ -107,8 +105,10 @@ const TrooperMissionCard = memo(function TrooperMissionCard({
         {/* Grit + Ammo */}
         <div className="flex gap-3">
           <PipTracker label="GRIT" value={trooper.grit} max={trooper.grit_max}
+            color="oklch(0.76 0.13 155)"
             onChange={v => updateTrooper(trooper.id, { grit: v })} />
           <PipTracker label="AMMO" value={trooper.ammo} max={trooper.ammo_max}
+            color="oklch(0.82 0.13 90)"
             onChange={v => updateTrooper(trooper.id, { ammo: v })} />
         </div>
       </div>

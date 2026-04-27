@@ -1,11 +1,11 @@
 import type { TrooperStatus } from '../types'
 
 const COLOR: Record<TrooperStatus, string> = {
-  ok: '#5a9e6e',
-  grazed: '#c8a030',
-  wounded: '#d45f27',
-  bleedingout: '#c93535',
-  dead: '#687868',
+  ok:         'oklch(0.76 0.13 155)',
+  grazed:     'oklch(0.82 0.13 90)',
+  wounded:    'oklch(0.72 0.15 45)',
+  bleedingout:'oklch(0.65 0.19 25)',
+  dead:       'oklch(0.50 0.02 100)',
 }
 
 const LABEL: Record<TrooperStatus, string> = {
@@ -13,8 +13,14 @@ const LABEL: Record<TrooperStatus, string> = {
 }
 
 export default function StatusBadge({ status }: { status: TrooperStatus }) {
+  const color = COLOR[status]
   return (
-    <span className="text-[10px] tracking-wider" style={{ color: COLOR[status] }}>
+    <span style={{
+      fontSize: 10, fontWeight: 700, letterSpacing: '0.3px',
+      padding: '3px 7px', borderRadius: 999,
+      background: `color-mix(in oklch, ${color} 18%, transparent)`,
+      color,
+    }}>
       {LABEL[status]}
     </span>
   )
