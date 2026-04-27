@@ -14,37 +14,35 @@ export default function MobilityCheckRoll() {
     const r = rollDie(6)
     const pass = mobilityCheck(effMob, r)
     setResults(p => ({ ...p, [id]: { roll: r, pass } }))
-    addRoll({
-      id: newId(), timestamp: Date.now(),
-      label: `${name} mobility check`, dice: '1d6',
-      results: [r], modifier: 0, total: r,
-    })
+    addRoll({ id: newId(), timestamp: Date.now(), label: `${name} mob check`, dice: '1d6', results: [r], modifier: 0, total: r })
   }
 
-  if (troopers.length === 0) {
-    return <div className="text-[10px] text-muted italic">No active troopers.</div>
-  }
+  if (troopers.length === 0) return <div className="text-[11px] text-muted italic">No active troopers.</div>
 
   return (
-    <div className="flex flex-col gap-1">
+    <div className="flex flex-col gap-2">
       {troopers.map(t => {
         const effMob = effectiveMobility(t)
         const r = results[t.id]
         return (
-          <div key={t.id} className="flex items-center justify-between text-[11px]">
+          <div key={t.id} className="flex items-center justify-between bg-bg border border-border rounded-lg px-2.5 py-2">
             <div>
-              <span className="text-ok">{t.name.toUpperCase()}</span>
-              <span className="text-muted ml-2">MOB {effMob}</span>
+              <div className="text-[12px] font-semibold">{t.name}</div>
+              <div className="text-[10px] text-muted font-mono">MOB {effMob}</div>
             </div>
             <div className="flex items-center gap-2">
               {r && (
-                <span className="text-[10px]">
-                  <span className="text-ink">{r.roll}</span>{' '}
-                  <span className={r.pass ? 'text-ok' : 'text-bad'}>{r.pass ? 'PASS' : 'FAIL'}</span>
-                </span>
+                <>
+                  <span className="text-[12px] font-mono text-ink-dim">{r.roll}</span>
+                  <span className={`text-[11px] font-bold ${r.pass ? 'text-ok' : 'text-bad'}`}>
+                    {r.pass ? 'PASS' : 'FAIL'}
+                  </span>
+                </>
               )}
               <button onClick={() => roll(t.id, t.name, effMob)}
-                className="text-[10px] text-warn border border-warn px-2 py-0.5">ROLL</button>
+                className="text-[11px] font-semibold border border-border px-2.5 py-1 rounded-sm text-ink-dim hover:border-accent hover:text-accent">
+                {r ? 'Re-roll' : 'Roll'}
+              </button>
             </div>
           </div>
         )
