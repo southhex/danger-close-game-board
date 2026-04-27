@@ -1,0 +1,55 @@
+/* Danger Close — V1 "Clean & Default" design tokens.
+   All colors in oklch. Modern browsers (Chrome 111+, Safari 16.4+, FF 113+) all support it.
+   Drop this into your global stylesheet, then reference via var(--token-name). */
+
+:root {
+  /* Surface & ink — warm-neutral dark */
+  --dc-bg:          oklch(0.175 0.006 130);
+  --dc-surface:     oklch(0.215 0.006 130);
+  --dc-surface-2:   oklch(0.255 0.006 130);
+  --dc-border:      oklch(0.30  0.005 130);
+  --dc-border-soft: oklch(0.26  0.005 130);
+  --dc-ink:         oklch(0.94  0.006 90);
+  --dc-ink-dim:     oklch(0.78  0.006 90);
+  --dc-muted:       oklch(0.62  0.006 100);
+  --dc-subtle:      oklch(0.48  0.006 100);
+
+  /* V1 accent — emerald.
+     Sibling variations use amber/indigo/coral at the same L:0.72 C:0.13. */
+  --dc-accent:        oklch(0.72 0.13 155);
+  --dc-accent-fg:     var(--dc-bg);              /* text on accent fill */
+  --dc-accent-soft:   color-mix(in oklch, var(--dc-accent) 14%, transparent);
+
+  /* Status — semantic, mapped to game rules */
+  --dc-status-ok:      oklch(0.76 0.13 155);
+  --dc-status-grazed:  oklch(0.82 0.13 90);
+  --dc-status-wounded: oklch(0.72 0.15 45);
+  --dc-status-bleed:   oklch(0.65 0.19 25);
+  --dc-status-dead:    oklch(0.50 0.02 100);
+
+  /* Type */
+  --dc-font-ui:   "Inter", system-ui, sans-serif;
+  --dc-font-mono: "JetBrains Mono", ui-monospace, monospace;
+
+  /* Radius (multiplied by --dc-r in case the app exposes a density toggle) */
+  --dc-r: 1;
+  --dc-radius-xs:  calc(4px  * var(--dc-r));
+  --dc-radius-sm:  calc(6px  * var(--dc-r));
+  --dc-radius-md:  calc(8px  * var(--dc-r));
+  --dc-radius-lg:  calc(10px * var(--dc-r));
+  --dc-radius-xl:  calc(12px * var(--dc-r));
+  --dc-radius-2xl: calc(14px * var(--dc-r));
+  --dc-radius-pill: 999px;
+
+  /* Spacing scale */
+  --dc-space-1:  4px;
+  --dc-space-2:  8px;
+  --dc-space-3:  10px;
+  --dc-space-4:  12px;
+  --dc-space-5:  14px;
+  --dc-space-6:  16px;
+  --dc-space-7:  20px;
+  --dc-space-8:  22px;
+  --dc-space-9:  24px;
+  --dc-space-10: 28px;
+}
