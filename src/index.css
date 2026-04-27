@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -7,13 +7,18 @@
 html, body, #root {
   height: 100%;
   margin: 0;
-  background: #161a17;
-  color: #bbbaa8;
-  font-family: 'Share Tech Mono', ui-monospace, monospace;
+  background: oklch(0.175 0.006 130);
+  color: oklch(0.94 0.006 90);
+  font-family: 'Inter', system-ui, sans-serif;
   font-size: 14px;
 }
 
 button { font-family: inherit; }
 
-/* Uppercase label utility */
-.lbl { text-transform: uppercase; letter-spacing: 0.12em; color: #687868; font-size: 11px; }
+.lbl {
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: oklch(0.62 0.006 100);
+  font-size: 10px;
+  font-weight: 600;
+}
