@@ -33,28 +33,35 @@ Design spec: `docs/superpowers/specs/2026-04-19-danger-close-play-aid-design.md`
 ```
 src/
   components/       # Shared UI primitives — barrel export via index.ts
-    PipTracker, Dropdown, Modal, ConfirmDialog, GearPopover, StatusBadge, Stepper
+    PipTracker, Dropdown, Modal, ConfirmDialog, GearPopover, StatusBadge, Stepper, TextPopover
   views/
     Barracks/       # TrooperCard, TrooperGrid (inlined), TrooperEditor, Barracks
-    MissionBoard/   # SectorMomentumPanel, MissionNotes, TrooperCardDock,
-                    # TrooperMissionCard, AdvanceRollPanel, MobilityCheckPhase, MissionBoard
+    MissionBoard/   # Phase-aware board; SectorChainStrip, SectorEditorModal,
+                    # SectorMomentumPanel, MissionNotes, TrooperCardDock,
+                    # TrooperMissionCard, AdvanceRollPanel, MobilityCheckPhase, MissionBoard,
+                    # EngagementPanel, IntentStep, OffenseStep, DefenseStep,
+                    # MomentumStep, EnemyTacticsStep,
+                    # MoveModal, CoveringFireModal, GearActionModal,
+                    # HardTargetPanel, AttachedForcePanel, CatchBreathPanel
     DiceTray/       # DiceControls, MobilityCheckRoll, RollHistory, DiceTray (modal)
     Settings/       # ExportImport, Settings
-  store/index.ts    # Zustand store with persist; partialize excludes currentView + diceTrayOpen
+  store/index.ts    # Zustand store with persist; version 2; v0→v1→v2 migration
   data/gear.ts      # 21-item static gear catalogue (3 armor, 3 weapons, 8 SW, 7 SE)
+  data/tags.ts      # 4 SRD tags + tagByName()
   hooks/
     useMediaQuery.ts
   utils/
-    gameRules.ts    # Pure functions — all game logic lives here, never in components
+    gameRules.ts    # Pure functions — all game logic; advance rules + engagement calc
     dice.ts         # rollDie, rollDice
     id.ts           # newId() — crypto.randomUUID() with fallback
-  types.ts          # All TS interfaces: View, Trooper, GearItem, MissionState, AppState, etc.
+  types.ts          # All TS interfaces — includes EngagementState, MissionSector (id/status),
+                    # HardTarget, AttachedForce, TrooperIntent, OffenseResult, DefenseResult, EnemyTactic
   App.tsx           # Shell: desktop sidebar + mobile bottom tabs + DiceTray modal
 docs/
   superpowers/
     specs/          # Design docs
     plans/          # Implementation plans
-tests/              # Vitest unit tests (gameRules, dice, store)
+tests/              # Vitest unit tests (gameRules 79, store 10, dice 2 = 91 total)
 ```
 
 ---
@@ -82,7 +89,9 @@ Defined in `src/types.ts`. The SRD is the authority on all mechanics.
 
 - `Trooper` — core persistent unit; permanent fields + mission-state fields including `special_weapon_uses` / `special_gear_uses`
 - `GearItem` — static bundled data; includes `mobility_cost`, `reqcost`, `max_uses`, full `properties` text
-- `MissionState` — one record per active mission; includes `stealth: boolean`
+- `MissionSector` — `{ id, name, cover, space, tl, weather, status: 'pending'|'active'|'cleared' }`
+- `MissionState` — `{ id, name, sectors: MissionSector[], activeSectorId, momentum, advance_rolls, stealth, notes, phase, engagement: EngagementState | null }`
+- `EngagementState` — full wizard state: step, pressure, hardTargets, attachedForces, intents, offenseResult, defenseResults, nextExchangeModifiers, etc.
 - `AppState` — root localStorage schema (`troopers`, `mission`, `diceHistory`)
 
 ---
@@ -126,6 +135,20 @@ Violations: disable option in dropdown, never silently correct.
 
 **Clamping:** Momentum −3 to +3. Grit/Ammo 0–3. Uses 0 to max_uses.
 
+**Engagement ATK calc** (per trooper firing):
+```
+total = 1 (base) + flanking bonus (if flanking) + weapon modifier + limited penalty (-1) + atkPenalty
+```
+Weapon modifiers: Carbine ±1 by space when Engaged; Marksman Rifle ±1 by cover when Engaged; Sniper Rifle +1/+2 when Fortified; HMG +1 when Fortified. All in `calcFireAtk()`.
+
+**DEF pool** = 1 + armor bonus + covering fire + modifiers. Min 1. `calcDefPool()`.
+
+**Offense outcome** (highest die): ≤3=pushed_back, 4–5=player choice, 6+=success.
+
+**Defense outcome**: Flanked safe on 5+, In Cover safe on 4+, Fortified safe on 3+.
+
+**Enemy tactics** (1d6 + TL): 2–4=none, 5=reposition, 6=scatter, 7=pinned_down, 8=encircle, 9=push_forward, 10+=fall_back.
+
 ---
 
 ## UI Conventions
@@ -161,3 +184,13 @@ const troopers = allTroopers.filter(t => t.active)
 ## v1 Out of Scope
 
 Campaign board, mission log, enemy tracking, multiplayer, cloud storage, undo/redo, print view.
+
+---
+
+## Store Schema History
+
+| Version | Changes |
+|---|---|
+| 0 | Initial — `perk: string`, no `tag`, `grit_max`, `ammo_max` |
+| 1 | `perks: Perk[]`, `tag`, `grit_max`, `ammo_max` on Trooper |
+| 2 | `mission.sector` → `mission.sectors[]` + `activeSectorId`; `phase`; `engagement` |

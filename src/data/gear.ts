@@ -27,7 +27,7 @@ export const GEAR: GearItem[] = [
   { name: 'Drone Gear', geartype: 'specialequipment', description: 'Recon.', properties: '+1 to each Advance Roll. Does not stack with multiple Drone Gear.', mobility_cost: -1, reqcost: 0, max_uses: -1 },
   { name: 'Medic Gear', geartype: 'specialequipment', description: 'Field aid.', properties: 'Patch Wounded Troopers back to OK when out of combat (Catch Breath).', mobility_cost: -1, reqcost: 0, max_uses: -1 },
   { name: 'Radio Gear', geartype: 'specialequipment', description: 'Artillery.', properties: 'Once per Mission: call an artillery strike on the current Sector. Hits in 1d2 Exchanges. Effect: +2 Momentum instantly, destroys all ground-based Hard Targets. All Troopers make a Mobility Check; failure = 1d3 Injury.', mobility_cost: -1, reqcost: 1, max_uses: 1 },
-  { name: 'Supply Backpack', geartype: 'specialequipment', description: '+6 extra Ammo.', properties: 'Holds 6 extra Ammo. Can be redistributed to Troopers out of combat.', mobility_cost: -1, reqcost: 1, max_uses: -1 },
+  { name: 'Supply Backpack', geartype: 'specialequipment', description: '+6 extra Ammo.', properties: 'Holds 6 extra Ammo. Can be redistributed to Troopers out of combat.', mobility_cost: -1, reqcost: 1, max_uses: 6 },
   { name: 'Environmental Gear', geartype: 'specialequipment', description: 'Hazard protection.', properties: 'Allows Troopers to traverse hazardous terrain or survive dangerous environments. One set covers 2 Troopers.', mobility_cost: -1, reqcost: 0, max_uses: -1 },
 ]
 

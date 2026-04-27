@@ -164,6 +164,7 @@ export interface DiceRoll {
   results: number[]
   modifier: number
   total: number
+  note?: string
 }
 
 export interface AppState {

@@ -23,13 +23,15 @@ export default function MissionBoard() {
 
   return (
     <div className="flex flex-col h-full">
-      <div className="flex-1 overflow-auto p-3 flex flex-col gap-3 pb-[260px]">
-        <SectorChainStrip />
-        {mission.phase === 'advance' && <AdvanceRollPanel />}
-        {mission.phase === 'engagement' && <EngagementPanel />}
-        {mission.phase === 'catch_breath' && <CatchBreathPanel />}
-        <SectorMomentumPanel />
-        <MissionNotes />
+      <div className="flex-1 overflow-auto">
+        <div className="p-3 flex flex-col gap-3 pb-12">
+          <SectorChainStrip />
+          {mission.phase === 'advance' && <AdvanceRollPanel />}
+          {mission.phase === 'engagement' && <EngagementPanel />}
+          {mission.phase === 'catch_breath' && <CatchBreathPanel />}
+          <SectorMomentumPanel />
+          <MissionNotes />
+        </div>
       </div>
       <TrooperCardDock />
     </div>
