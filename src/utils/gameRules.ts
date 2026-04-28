@@ -282,3 +282,10 @@ export function calcFireAtk(args: {
   const total = Math.max(0, base + flanking + weapon + limited + atkPenalty)
   return { base, flanking, weapon, limited, atkPenalty, total }
 }
+
+export function weatherLabel(weather: -2 | -1 | 0 | 1): string {
+  if (weather === -2) return 'EXTREME'
+  if (weather === -1) return 'HARSH'
+  if (weather === 0)  return 'CLEAR'
+  return 'FAVORABLE'
+}

@@ -6,7 +6,7 @@ import {
   stealthShouldClear, infiltrationPicks, woundCount, clampUses, lookupRollTable,
   sectorNotation, offenseRollOutcome, momentumDeltaFromOutcome, defRollOutcome,
   injuryDiceForTL, enemyTacticFromRoll, pressureIncreases, hardTargetMaxHp,
-  hardTargetDefHits, calcDefPool, calcFireAtk,
+  hardTargetDefHits, calcDefPool, calcFireAtk, weatherLabel,
 } from '../src/utils/gameRules'
 import type { Trooper, MissionSector, HardTarget } from '../src/types'
 
@@ -386,5 +386,14 @@ describe('calcFireAtk', () => {
       atkPenalty: 5,
     })
     expect(result.total).toBe(0)
+  })
+})
+
+describe('weatherLabel', () => {
+  it('formats each weather value', () => {
+    expect(weatherLabel(-2)).toBe('EXTREME')
+    expect(weatherLabel(-1)).toBe('HARSH')
+    expect(weatherLabel(0)).toBe('CLEAR')
+    expect(weatherLabel(1)).toBe('FAVORABLE')
   })
 })
