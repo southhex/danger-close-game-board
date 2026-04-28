@@ -3,6 +3,7 @@ import { ConfirmDialog, StatusBadge } from '../../components'
 import { useStore } from '../../store'
 import SectorEditorModal from './SectorEditorModal'
 import SectorHeader from './SectorHeader'
+import AdvancePreview from './AdvancePreview'
 
 export default function CatchBreathPanel() {
   const mission = useStore(s => s.mission)
@@ -225,13 +226,13 @@ export default function CatchBreathPanel() {
       {/* ── Section 7: Advance ── */}
       <div>
         <div className="lbl text-[10px] mb-1">ADVANCE</div>
-        {nextSector ? (
-          <button
-            onClick={advanceToNextSector}
-            className="w-full px-3 py-2 border border-ok text-ok text-[10px] text-left"
-          >
-            ADVANCE TO NEXT SECTOR ({nextSector.name}) →
-          </button>
+        {nextSector && activeSector ? (
+          <AdvancePreview
+            fromSector={activeSector}
+            toSector={nextSector}
+            mission={mission!}
+            onConfirm={advanceToNextSector}
+          />
         ) : (
           <>
             <button
