@@ -6,6 +6,7 @@ import {
 import { rollDice } from '../../utils/dice'
 import { newId } from '../../utils/id'
 import MobilityCheckPhase from './MobilityCheckPhase'
+import SectorHeader from './SectorHeader'
 import type { AdvanceResult, OffensivePosition, Trooper } from '../../types'
 
 type Phase =
@@ -89,6 +90,7 @@ export default function AdvanceRollPanel() {
 
   return (
     <div className="bg-surface border border-border p-3">
+      <SectorHeader sector={activeSector} />
       <div className="flex items-center justify-between mb-2">
         <div className="lbl">ADVANCE ROLL</div>
         <button onClick={() => setShowTable(s => !s)} className="text-[10px] text-muted">

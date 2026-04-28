@@ -1,6 +1,6 @@
 import { useStore } from '../../store'
-import { sectorNotation } from '../../utils/gameRules'
 import HardTargetPanel from './HardTargetPanel'
+import SectorHeader from './SectorHeader'
 import AttachedForcePanel from './AttachedForcePanel'
 import IntentStep from './IntentStep'
 import OffenseStep from './OffenseStep'
@@ -68,7 +68,7 @@ export default function EngagementPanel() {
 
         {/* Sector notation + momentum + pressure row */}
         <div className="flex items-center gap-4 flex-wrap">
-          <div className="text-[10px] text-muted">{sectorNotation(activeSector)}</div>
+          <SectorHeader sector={activeSector} />
 
           <div className="flex items-center gap-1">
             <span className="lbl text-[9px]">MOMENTUM:</span>

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { ConfirmDialog, StatusBadge } from '../../components'
 import { useStore } from '../../store'
 import SectorEditorModal from './SectorEditorModal'
+import SectorHeader from './SectorHeader'
 
 export default function CatchBreathPanel() {
   const mission = useStore(s => s.mission)
@@ -12,6 +13,7 @@ export default function CatchBreathPanel() {
 
   // Derive in component body, not in selectors
   const activeTroopers = allTroopers.filter(t => t.active && t.status !== 'dead')
+  const activeSector = mission ? mission.sectors.find(s => s.id === mission.activeSectorId) : null
   const currentIdx = mission ? mission.sectors.findIndex(s => s.id === mission.activeSectorId) : -1
   const nextSector = mission
     ? mission.sectors.slice(currentIdx + 1).find(s => s.status === 'pending') ?? null
@@ -71,6 +73,7 @@ export default function CatchBreathPanel() {
 
   return (
     <div className="flex flex-col gap-4 p-3 text-[11px] font-mono">
+      {activeSector && <SectorHeader sector={activeSector} />}
 
       {/* ── Header ── */}
       <div>
