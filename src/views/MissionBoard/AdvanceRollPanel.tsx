@@ -7,6 +7,7 @@ import { rollDice } from '../../utils/dice'
 import { newId } from '../../utils/id'
 import MobilityCheckPhase from './MobilityCheckPhase'
 import SectorHeader from './SectorHeader'
+import SectorEnteredBanner from './SectorEnteredBanner'
 import type { AdvanceResult, OffensivePosition, Trooper } from '../../types'
 
 type Phase =
@@ -21,6 +22,7 @@ export default function AdvanceRollPanel() {
   const applyAdvanceResult = useStore(s => s.applyAdvanceResult)
   const beginEngagement = useStore(s => s.beginEngagement)
   const addRoll = useStore(s => s.addRoll)
+  const clearTransition = useStore(s => s.clearTransition)
 
   const [assaultAmmo, setAssaultAmmo] = useState(0)
   const [phase, setPhase] = useState<Phase>({ kind: 'setup' })
@@ -35,6 +37,11 @@ export default function AdvanceRollPanel() {
 
   const activeSector = mission.sectors.find(s => s.id === mission.activeSectorId) ?? mission.sectors[0]
 
+  const fromSector = mission.transitionFromSectorId
+    ? mission.sectors.find(s => s.id === mission.transitionFromSectorId) ?? null
+    : null
+  const showBanner = fromSector !== null && phase.kind === 'setup'
+
   const mod = advanceModifier({
     advanceRolls: mission.advance_rolls,
     wounds,
@@ -48,6 +55,7 @@ export default function AdvanceRollPanel() {
   const setStealth = (v: boolean) => setMission({ stealth: v })
 
   const roll = () => {
+    clearTransition()
     const dice = rollDice(2, 6)
     const total = dice[0] + dice[1] + mod.total
     const result = advanceResult(total)
@@ -91,6 +99,13 @@ export default function AdvanceRollPanel() {
   return (
     <div className="bg-surface border border-border p-3">
       <SectorHeader sector={activeSector} />
+      {showBanner && fromSector && (
+        <SectorEnteredBanner
+          fromSector={fromSector}
+          toSector={activeSector}
+          onDismiss={clearTransition}
+        />
+      )}
       <div className="flex items-center justify-between mb-2">
         <div className="lbl">ADVANCE ROLL</div>
         <button onClick={() => setShowTable(s => !s)} className="text-[10px] text-muted">
