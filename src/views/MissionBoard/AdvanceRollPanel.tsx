@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useState, useEffect } from 'react'
 import { useStore } from '../../store'
 import {
   advanceModifier, advanceResult, woundCount, clampAmmo,
@@ -41,6 +41,12 @@ export default function AdvanceRollPanel() {
     ? mission.sectors.find(s => s.id === mission.transitionFromSectorId) ?? null
     : null
   const showBanner = fromSector !== null && phase.kind === 'setup'
+
+  useEffect(() => {
+    if (mission.transitionFromSectorId && !fromSector) {
+      clearTransition()
+    }
+  }, [mission.transitionFromSectorId, fromSector, clearTransition])
 
   const mod = advanceModifier({
     advanceRolls: mission.advance_rolls,

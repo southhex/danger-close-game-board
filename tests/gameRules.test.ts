@@ -4,7 +4,7 @@ import {
   momentumForResult, defposForResult, offposFromCheck, mobilityCheck,
   clampMomentum, fortifiedLimit, flankingLimit, canSetDefpos, canSetOffpos,
   stealthShouldClear, infiltrationPicks, woundCount, clampUses, lookupRollTable,
-  sectorNotation, offenseRollOutcome, momentumDeltaFromOutcome, defRollOutcome,
+  offenseRollOutcome, momentumDeltaFromOutcome, defRollOutcome,
   injuryDiceForTL, enemyTacticFromRoll, pressureIncreases, hardTargetMaxHp,
   hardTargetDefHits, calcDefPool, calcFireAtk, weatherLabel,
 } from '../src/utils/gameRules'
@@ -217,15 +217,6 @@ describe('lookupRollTable', () => {
 })
 
 // ─── Engagement flow tests ─────────────────────────────────────────────────
-
-describe('sectorNotation', () => {
-  it('formats name + C/S/TL', () => {
-    expect(sectorNotation(mkSector({ name: 'Alpha', cover: 1, space: 2, tl: 2 }))).toBe('Alpha C1/S2/TL2')
-  })
-  it('works with all-zero values at minimum', () => {
-    expect(sectorNotation(mkSector({ name: 'Bravo', cover: 0, space: 0, tl: 1 }))).toBe('Bravo C0/S0/TL1')
-  })
-})
 
 describe('offenseRollOutcome', () => {
   it('1 → pushed_back', () => { expect(offenseRollOutcome(1)).toBe('pushed_back') })

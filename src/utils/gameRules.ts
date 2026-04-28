@@ -144,10 +144,6 @@ export function lookupRollTable(entries: RollTableEntry[], roll: number): string
 
 // ─── Engagement flow pure functions ────────────────────────────────────────
 
-export function sectorNotation(sector: MissionSector): string {
-  return `${sector.name} C${sector.cover}/S${sector.space}/TL${sector.tl}`
-}
-
 export function offenseRollOutcome(highest: number): OffenseResult['outcome'] {
   if (highest <= 3) return 'pushed_back'
   if (highest <= 5) return 'hold_position'

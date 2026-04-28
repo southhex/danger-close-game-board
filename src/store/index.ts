@@ -660,6 +660,9 @@ export const useStore = create<Store>()(
       name: 'danger-close-app-state',
       version: 3,
       migrate: (persistedState: unknown, version: number) => {
+        // Migration is cumulative: each block falls through to the next so that
+        // a v0 user runs v1 → v2 → v3 in sequence. All blocks mutate the same
+        // persistedState object via local casts; do not add early returns.
         if (version < 1) {
           const state = persistedState as Record<string, unknown>
           if (Array.isArray(state.troopers)) {
