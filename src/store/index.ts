@@ -61,6 +61,7 @@ interface Store extends AppState {
   beginNextExchange: () => void
   endEngagement: (outcome: 'victory' | 'defeat' | 'disengage') => void
   advanceToNextSector: () => void
+  clearTransition: () => void
 
   applyHardTargetHit: (targetId: string, atCost: boolean, costTrooperId?: string) => void
   updatePressure: (delta: number) => void
@@ -82,6 +83,7 @@ const DEFAULT_MISSION: MissionState = {
   advance_rolls: 0,
   stealth: false,
   notes: '',
+  transitionFromSectorId: null,
 }
 
 function maxUsesFor(gearName: string): number {
@@ -173,7 +175,10 @@ export const useStore = create<Store>()(
         mission: s.mission ? { ...s.mission, ...patch, momentum: 'momentum' in patch ? clampMomentum(patch.momentum!) : s.mission.momentum } : null,
       })),
 
-      resetMission: () => set(() => ({ mission: { ...DEFAULT_MISSION, id: newId() } })),
+      resetMission: () => set((s) => ({
+        mission: { ...DEFAULT_MISSION, id: newId() },
+        troopers: s.troopers.map(t => t.active ? resetTrooperForMission(t) : t),
+      })),
 
       applyAdvanceResult: ({ result, trooperOffpos }) => set((s) => {
         if (!s.mission) return s
@@ -247,9 +252,14 @@ export const useStore = create<Store>()(
           mission: {
             ...s.mission,
             activeSectorId: id,
-            sectors: s.mission.sectors.map(sec =>
-              sec.id === id ? { ...sec, status: 'active' as const } : sec,
-            ),
+            phase: 'advance' as const,
+            engagement: null,
+            advance_rolls: 0,
+            sectors: s.mission.sectors.map(sec => {
+              if (sec.id === id) return { ...sec, status: 'active' as const }
+              if (sec.status === 'active') return { ...sec, status: 'pending' as const }
+              return sec
+            }),
           },
         }
       }),
@@ -475,16 +485,16 @@ export const useStore = create<Store>()(
         if (!s.mission) return s
         const sectors = s.mission.sectors
         const currentIdx = sectors.findIndex(sec => sec.id === s.mission!.activeSectorId)
+        const fromSectorId = s.mission.activeSectorId
         const nextSector = sectors.slice(currentIdx + 1).find(sec => sec.status === 'pending')
         if (!nextSector) return s
 
         const newSectors = sectors.map(sec => {
-          if (sec.id === s.mission!.activeSectorId) return { ...sec, status: 'cleared' as const }
+          if (sec.id === fromSectorId) return { ...sec, status: 'cleared' as const }
           if (sec.id === nextSector.id) return { ...sec, status: 'active' as const }
           return sec
         })
 
-        // Reset trooper mission state (not grit/ammo/status — those persist)
         const nextTroopers = s.troopers.map(t => {
           if (!t.active) return t
           const jumpPackMax = t.special_gear === 'Jump Pack' ? maxUsesFor('Jump Pack') : t.special_gear_uses
@@ -505,8 +515,14 @@ export const useStore = create<Store>()(
             advance_rolls: 0,
             phase: 'advance' as const,
             engagement: null,
+            transitionFromSectorId: fromSectorId,
           },
         }
+      }),
+
+      clearTransition: () => set((s) => {
+        if (!s.mission) return s
+        return { mission: { ...s.mission, transitionFromSectorId: null } }
       }),
 
       // ── Hard targets & attached forces ──────────────────────────────────────
@@ -642,7 +658,7 @@ export const useStore = create<Store>()(
     }),
     {
       name: 'danger-close-app-state',
-      version: 2,
+      version: 3,
       migrate: (persistedState: unknown, version: number) => {
         if (version < 1) {
           const state = persistedState as Record<string, unknown>
@@ -656,7 +672,6 @@ export const useStore = create<Store>()(
               perk: undefined,
             }))
           }
-          return state
         }
         if (version < 2) {
           const state = persistedState as Record<string, unknown>
@@ -673,6 +688,15 @@ export const useStore = create<Store>()(
             }
             m.phase = m.phase ?? 'advance'
             m.engagement = m.engagement ?? null
+          }
+        }
+        if (version < 3) {
+          const state = persistedState as Record<string, unknown>
+          if (state.mission && typeof state.mission === 'object') {
+            const m = state.mission as Record<string, unknown>
+            if (m.transitionFromSectorId === undefined) {
+              m.transitionFromSectorId = null
+            }
           }
         }
         return persistedState as Record<string, unknown>

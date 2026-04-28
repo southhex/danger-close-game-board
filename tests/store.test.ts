@@ -203,6 +203,7 @@ describe('store', () => {
           trooperMovedLastExchange: {}, tankActsThisExchange: false,
         },
         momentum: 2, advance_rolls: 1, stealth: false, notes: '',
+        transitionFromSectorId: null,
       },
     })
     useStore.getState().endEngagement('victory')
@@ -212,5 +213,49 @@ describe('store', () => {
     expect(mission!.engagement).not.toBeNull()
     expect(mission!.engagement!.exchangeNumber).toBe(3)
     expect(mission!.engagement!.radioStrikeCountdown).toBe(1)
+  })
+})
+
+describe('sector transition state', () => {
+  beforeEach(() => { resetStore() })
+
+  it('advanceToNextSector sets transitionFromSectorId to the leaving sector', () => {
+    useStore.setState({
+      troopers: [makeTrooper({ id: 't1', mobility: 4 })],
+      mission: {
+        id: 'm', name: 'M',
+        sectors: [
+          { id: 'a', name: 'A', cover: 1, space: 1, tl: 2, weather: 0, status: 'active' },
+          { id: 'b', name: 'B', cover: 1, space: 1, tl: 2, weather: 0, status: 'pending' },
+        ],
+        activeSectorId: 'a',
+        phase: 'catch_breath', engagement: null,
+        momentum: 0, advance_rolls: 0, stealth: false, notes: '',
+        transitionFromSectorId: null,
+      },
+    })
+
+    useStore.getState().advanceToNextSector()
+
+    const m = useStore.getState().mission!
+    expect(m.activeSectorId).toBe('b')
+    expect(m.transitionFromSectorId).toBe('a')
+    expect(m.sectors.find(s => s.id === 'a')!.status).toBe('cleared')
+  })
+
+  it('clearTransition resets the flag', () => {
+    useStore.setState({
+      mission: {
+        id: 'm', name: 'M',
+        sectors: [{ id: 'a', name: 'A', cover: 1, space: 1, tl: 2, weather: 0, status: 'active' }],
+        activeSectorId: 'a',
+        phase: 'advance', engagement: null,
+        momentum: 0, advance_rolls: 0, stealth: false, notes: '',
+        transitionFromSectorId: 'previous',
+      },
+    })
+
+    useStore.getState().clearTransition()
+    expect(useStore.getState().mission!.transitionFromSectorId).toBeNull()
   })
 })

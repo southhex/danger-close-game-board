@@ -80,6 +80,7 @@ export interface MissionState {
   advance_rolls: number
   stealth: boolean
   notes: string
+  transitionFromSectorId: string | null
 }
 
 export interface EngagementState {
