@@ -31,7 +31,8 @@ dist-ssr
 # Reference material
 EXAMPLE - dicebag/
 
-# SQLite dev database
-server/danger-close-dev.db
-server/danger-close-dev.db-shm
-server/danger-close-dev.db-wal
+# SQLite databases
+*.db
+*.db-shm
+*.db-wal
+/data/

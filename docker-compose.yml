@@ -1,0 +1,13 @@
+services:
+  danger-close:
+    build: .
+    image: danger-close:latest
+    ports:
+      - "8080:8080"
+    volumes:
+      - /DATA/AppData/danger-close:/data
+    environment:
+      - SESSION_SECRET=${SESSION_SECRET}
+      - PORT=8080
+      - NODE_ENV=production
+    restart: unless-stopped
