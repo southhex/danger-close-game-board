@@ -65,19 +65,26 @@ function makeRequireAuth(db: Database) {
   }
 }
 
+function makeRequireSetup(db: Database) {
+  return async function requireSetup(c: Context, next: Next): Promise<Response | void> {
+    const row = db.prepare<[], { count: number }>('SELECT COUNT(*) as count FROM users').get()
+    const count = row?.count ?? 0
+
+    if (count > 0) {
+      return c.json({ error: 'Setup already completed', setupRequired: true }, 403)
+    }
+
+    await next()
+  }
+}
+
 export function createAuthRoutes(db: Database = defaultDb): Hono {
   const router = new Hono()
   const requireAuth = makeRequireAuth(db)
+  const requireSetup = makeRequireSetup(db)
 
   // POST /setup — one-time user creation (only when no users exist)
-  router.post('/setup', async (c) => {
-    const count =
-      db.prepare<[], CountRow>('SELECT COUNT(*) as count FROM users').get()?.count ?? 0
-
-    if (count > 0) {
-      return c.json({ error: 'Setup already completed' }, 403)
-    }
-
+  router.post('/setup', requireSetup, async (c) => {
     let body: { username?: unknown; password?: unknown }
     try {
       body = await c.req.json<{ username?: unknown; password?: unknown }>()

@@ -39,7 +39,7 @@ export async function requireSetup(c: Context, next: Next): Promise<Response | v
   const count = row?.count ?? 0
 
   if (count > 0) {
-    return c.json({ error: 'Setup already completed' }, 403)
+    return c.json({ error: 'Setup already completed', setupRequired: true }, 403)
   }
 
   await next()

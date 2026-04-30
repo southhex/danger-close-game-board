@@ -68,8 +68,9 @@ describe('POST /api/auth/setup', () => {
     })
 
     expect(res.status).toBe(403)
-    const body = await res.json() as { error: string }
+    const body = await res.json() as { error: string; setupRequired: boolean }
     expect(body.error).toMatch(/already/i)
+    expect(body.setupRequired).toBe(true)
   })
 
   it('fails with 400 for invalid username format', async () => {
