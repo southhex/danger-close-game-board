@@ -12,7 +12,7 @@ function getDbPath(): string {
   return process.env.DB_PATH ?? join(__dirname, '..', 'danger-close-dev.db')
 }
 
-function createDb(path: string): Database.Database {
+export function createDb(path: string): Database.Database {
   const db = new Database(path)
 
   // Enable WAL mode and foreign keys
@@ -33,7 +33,7 @@ function createDb(path: string): Database.Database {
   return db
 }
 
-function runMigrations(db: Database.Database): void {
+export function runMigrations(db: Database.Database): void {
   const migrationsDir = join(__dirname, 'migrations')
 
   let files: string[]
@@ -41,7 +41,8 @@ function runMigrations(db: Database.Database): void {
     files = readdirSync(migrationsDir)
       .filter((f) => f.endsWith('.sql'))
       .sort()
-  } catch {
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code !== 'ENOENT') throw err
     // No migrations directory — nothing to apply
     return
   }
@@ -60,7 +61,11 @@ function runMigrations(db: Database.Database): void {
     const sql = readFileSync(join(migrationsDir, filename), 'utf8')
 
     db.transaction(() => {
-      db.exec(sql)
+      try {
+        db.exec(sql)
+      } catch (err) {
+        throw new Error(`Migration failed: ${filename}`, { cause: err })
+      }
       db.prepare('INSERT INTO _migrations (filename) VALUES (?)').run(filename)
     })()
 
@@ -68,7 +73,14 @@ function runMigrations(db: Database.Database): void {
   }
 }
 
-export const db: Database.Database = createDb(getDbPath())
+let db: Database.Database
+try {
+  db = createDb(getDbPath())
+} catch (err) {
+  console.error('[db] Fatal: failed to initialise database:', err)
+  process.exit(1)
+}
+export { db }
 
 // Allow tests to create an isolated in-memory DB
 export function createTestDb(): Database.Database {
