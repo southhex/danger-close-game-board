@@ -74,7 +74,7 @@ export interface MissionState {
   name: string
   sectors: MissionSector[]
   activeSectorId: string
-  phase: 'advance' | 'engagement' | 'catch_breath'
+  phase: 'advance' | 'engagement' | 'catch_breath' | 'mission_complete'
   engagement: EngagementState | null
   momentum: number
   advance_rolls: number

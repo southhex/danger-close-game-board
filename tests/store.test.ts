@@ -213,6 +213,143 @@ describe('store', () => {
     expect(mission!.engagement).not.toBeNull()
     expect(mission!.engagement!.exchangeNumber).toBe(3)
     expect(mission!.engagement!.radioStrikeCountdown).toBe(1)
+    // Victory marks the active sector cleared
+    expect(mission!.sectors.find(s => s.id === 's1')!.status).toBe('cleared')
+  })
+})
+
+describe('mission progression', () => {
+  beforeEach(() => { resetStore() })
+
+  function setupTwoSectors(activePhase: 'advance' | 'engagement' | 'catch_breath' = 'advance') {
+    useStore.setState({
+      troopers: [makeTrooper({ id: 't1', mobility: 4, suppressed: true, def_modifier: -2 })],
+      mission: {
+        id: 'm', name: 'M',
+        sectors: [
+          { id: 'a', name: 'Alpha', cover: 1, space: 1, tl: 2, weather: 0, status: 'active' },
+          { id: 'b', name: 'Bravo', cover: 1, space: 1, tl: 2, weather: 0, status: 'pending' },
+        ],
+        activeSectorId: 'a',
+        phase: activePhase, engagement: null,
+        momentum: 0, advance_rolls: 2, stealth: false, notes: '',
+        transitionFromSectorId: null,
+      },
+    })
+  }
+
+  it('overwhelmActiveSector clears current and advances to next pending', () => {
+    setupTwoSectors()
+    useStore.getState().overwhelmActiveSector()
+    const m = useStore.getState().mission!
+    expect(m.activeSectorId).toBe('b')
+    expect(m.sectors.find(s => s.id === 'a')!.status).toBe('cleared')
+    expect(m.sectors.find(s => s.id === 'b')!.status).toBe('active')
+    expect(m.phase).toBe('advance')
+    expect(m.advance_rolls).toBe(0)
+    expect(m.transitionFromSectorId).toBe('a')
+  })
+
+  it('bypassActiveSector clears current and advances (same as overwhelm)', () => {
+    setupTwoSectors()
+    useStore.getState().bypassActiveSector()
+    const m = useStore.getState().mission!
+    expect(m.activeSectorId).toBe('b')
+    expect(m.sectors.find(s => s.id === 'a')!.status).toBe('cleared')
+    expect(m.phase).toBe('advance')
+    expect(m.transitionFromSectorId).toBe('a')
+  })
+
+  it('clearAndAdvance with no next pending sector lands in catch_breath', () => {
+    useStore.setState({
+      troopers: [makeTrooper({ id: 't1', mobility: 4 })],
+      mission: {
+        id: 'm', name: 'M',
+        sectors: [
+          { id: 'a', name: 'Alpha', cover: 1, space: 1, tl: 2, weather: 0, status: 'active' },
+        ],
+        activeSectorId: 'a',
+        phase: 'advance', engagement: null,
+        momentum: 0, advance_rolls: 1, stealth: false, notes: '',
+        transitionFromSectorId: null,
+      },
+    })
+    useStore.getState().overwhelmActiveSector()
+    const m = useStore.getState().mission!
+    expect(m.phase).toBe('catch_breath')
+    expect(m.sectors.find(s => s.id === 'a')!.status).toBe('cleared')
+    expect(m.transitionFromSectorId).toBeNull()
+    expect(m.advance_rolls).toBe(0)
+  })
+
+  it('endEngagement(defeat) does not mark sector cleared', () => {
+    setupTwoSectors('engagement')
+    useStore.getState().endEngagement('defeat')
+    const m = useStore.getState().mission!
+    expect(m.phase).toBe('catch_breath')
+    expect(m.sectors.find(s => s.id === 'a')!.status).toBe('active')
+  })
+
+  it('endEngagement(disengage) does not mark sector cleared', () => {
+    setupTwoSectors('engagement')
+    useStore.getState().endEngagement('disengage')
+    const m = useStore.getState().mission!
+    expect(m.phase).toBe('catch_breath')
+    expect(m.sectors.find(s => s.id === 'a')!.status).toBe('active')
+  })
+
+  it('endMission transitions to mission_complete and clears engagement', () => {
+    setupTwoSectors('catch_breath')
+    useStore.getState().endMission()
+    const m = useStore.getState().mission!
+    expect(m.phase).toBe('mission_complete')
+    expect(m.engagement).toBeNull()
+  })
+
+  it('setActiveSector ignores cleared targets', () => {
+    useStore.setState({
+      mission: {
+        id: 'm', name: 'M',
+        sectors: [
+          { id: 'a', name: 'Alpha', cover: 1, space: 1, tl: 2, weather: 0, status: 'cleared' },
+          { id: 'b', name: 'Bravo', cover: 1, space: 1, tl: 2, weather: 0, status: 'active' },
+        ],
+        activeSectorId: 'b',
+        phase: 'advance', engagement: null,
+        momentum: 0, advance_rolls: 0, stealth: false, notes: '',
+        transitionFromSectorId: null,
+      },
+    })
+    useStore.getState().setActiveSector('a')
+    const m = useStore.getState().mission!
+    expect(m.activeSectorId).toBe('b')
+    expect(m.sectors.find(s => s.id === 'a')!.status).toBe('cleared')
+    expect(m.sectors.find(s => s.id === 'b')!.status).toBe('active')
+  })
+
+  it('clearAndAdvance refreshes Jump Pack uses and clears suppressed/def_modifier', () => {
+    useStore.setState({
+      troopers: [makeTrooper({
+        id: 't1', mobility: 4, special_gear: 'Jump Pack',
+        special_gear_uses: 0, suppressed: true, def_modifier: -1,
+      })],
+      mission: {
+        id: 'm', name: 'M',
+        sectors: [
+          { id: 'a', name: 'Alpha', cover: 1, space: 1, tl: 2, weather: 0, status: 'active' },
+          { id: 'b', name: 'Bravo', cover: 1, space: 1, tl: 2, weather: 0, status: 'pending' },
+        ],
+        activeSectorId: 'a',
+        phase: 'advance', engagement: null,
+        momentum: 0, advance_rolls: 0, stealth: false, notes: '',
+        transitionFromSectorId: null,
+      },
+    })
+    useStore.getState().bypassActiveSector()
+    const t = useStore.getState().troopers[0]
+    expect(t.suppressed).toBe(false)
+    expect(t.def_modifier).toBe(0)
+    expect(t.special_gear_uses).toBeGreaterThan(0)
   })
 })
 

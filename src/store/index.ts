@@ -42,7 +42,12 @@ interface Store extends AppState {
   setActiveSector: (id: string) => void
 
   // Mission phase
-  setMissionPhase: (phase: 'advance' | 'engagement' | 'catch_breath') => void
+  setMissionPhase: (phase: 'advance' | 'engagement' | 'catch_breath' | 'mission_complete') => void
+  endMission: () => void
+
+  // Sector clear-and-advance (used by overwhelm and bypass paths)
+  overwhelmActiveSector: () => void
+  bypassActiveSector: () => void
 
   // Engagement lifecycle
   beginEngagement: () => void
@@ -104,6 +109,69 @@ function resetTrooperForMission(t: Trooper): Trooper {
     def_modifier: 0,
     special_weapon_uses: t.special_weapon ? maxUsesFor(t.special_weapon) : -1,
     special_gear_uses: t.special_gear ? maxUsesFor(t.special_gear) : -1,
+  }
+}
+
+// Shared by advanceToNextSector / overwhelmActiveSector / bypassActiveSector.
+// Marks the active sector cleared, then either activates the next pending
+// sector (phase='advance') or, if none, transitions to catch_breath so the
+// user can choose to add a sector or end the mission. Resets advance_rolls
+// and trooper transient state; sets transitionFromSectorId for the
+// post-advance banner. Caller must ensure mission is non-null.
+function clearAndAdvanceMission(
+  mission: MissionState,
+  troopers: Trooper[],
+): { mission: MissionState; troopers: Trooper[] } {
+  const sectors = mission.sectors
+  const fromSectorId = mission.activeSectorId
+  const currentIdx = sectors.findIndex(sec => sec.id === fromSectorId)
+  const nextSector = sectors.slice(currentIdx + 1).find(sec => sec.status === 'pending')
+
+  // Mark current cleared regardless of whether a next sector exists.
+  const clearedSectors = sectors.map(sec =>
+    sec.id === fromSectorId ? { ...sec, status: 'cleared' as const } : sec,
+  )
+
+  const nextTroopers = troopers.map(t => {
+    if (!t.active) return t
+    const jumpPackMax = t.special_gear === 'Jump Pack' ? maxUsesFor('Jump Pack') : t.special_gear_uses
+    return {
+      ...t,
+      suppressed: false,
+      def_modifier: 0,
+      special_gear_uses: jumpPackMax,
+    }
+  })
+
+  if (!nextSector) {
+    return {
+      troopers: nextTroopers,
+      mission: {
+        ...mission,
+        sectors: clearedSectors,
+        advance_rolls: 0,
+        phase: 'catch_breath' as const,
+        engagement: null,
+        transitionFromSectorId: null,
+      },
+    }
+  }
+
+  const activatedSectors = clearedSectors.map(sec =>
+    sec.id === nextSector.id ? { ...sec, status: 'active' as const } : sec,
+  )
+
+  return {
+    troopers: nextTroopers,
+    mission: {
+      ...mission,
+      sectors: activatedSectors,
+      activeSectorId: nextSector.id,
+      advance_rolls: 0,
+      phase: 'advance' as const,
+      engagement: null,
+      transitionFromSectorId: fromSectorId,
+    },
   }
 }
 
@@ -248,6 +316,10 @@ export const useStore = create<Store>()(
 
       setActiveSector: (id) => set((s) => {
         if (!s.mission) return s
+        const target = s.mission.sectors.find(sec => sec.id === id)
+        // Cleared sectors are terminal — clicking the chip is a no-op so the
+        // user can't silently reopen them. The ✎ button still edits.
+        if (!target || target.status === 'cleared') return s
         return {
           mission: {
             ...s.mission,
@@ -255,8 +327,11 @@ export const useStore = create<Store>()(
             phase: 'advance' as const,
             engagement: null,
             advance_rolls: 0,
+            transitionFromSectorId: null,
             sectors: s.mission.sectors.map(sec => {
               if (sec.id === id) return { ...sec, status: 'active' as const }
+              // Only demote if the previously-active sector is still 'active'.
+              // A cleared sector that happened to also be activeSectorId stays cleared.
               if (sec.status === 'active') return { ...sec, status: 'pending' as const }
               return sec
             }),
@@ -471,53 +546,49 @@ export const useStore = create<Store>()(
         }
       }),
 
-      endEngagement: (_outcome) => set((s) => {
+      endEngagement: (outcome) => set((s) => {
+        if (!s.mission) return s
+        // Victory clears the current sector. Defeat/disengage leave its status alone.
+        const newSectors = outcome === 'victory'
+          ? s.mission.sectors.map(sec =>
+              sec.id === s.mission!.activeSectorId ? { ...sec, status: 'cleared' as const } : sec,
+            )
+          : s.mission.sectors
+        return {
+          mission: {
+            ...s.mission,
+            sectors: newSectors,
+            phase: 'catch_breath' as const,
+          },
+        }
+      }),
+
+      endMission: () => set((s) => {
         if (!s.mission) return s
         return {
           mission: {
             ...s.mission,
-            phase: 'catch_breath' as const,
+            phase: 'mission_complete' as const,
+            engagement: null,
           },
         }
       }),
 
       advanceToNextSector: () => set((s) => {
         if (!s.mission) return s
-        const sectors = s.mission.sectors
-        const currentIdx = sectors.findIndex(sec => sec.id === s.mission!.activeSectorId)
-        const fromSectorId = s.mission.activeSectorId
-        const nextSector = sectors.slice(currentIdx + 1).find(sec => sec.status === 'pending')
-        if (!nextSector) return s
+        return clearAndAdvanceMission(s.mission, s.troopers)
+      }),
 
-        const newSectors = sectors.map(sec => {
-          if (sec.id === fromSectorId) return { ...sec, status: 'cleared' as const }
-          if (sec.id === nextSector.id) return { ...sec, status: 'active' as const }
-          return sec
-        })
+      // Used by overwhelm + bypass: same shape as advanceToNextSector but distinct
+      // names so call-sites read self-explanatorily.
+      overwhelmActiveSector: () => set((s) => {
+        if (!s.mission) return s
+        return clearAndAdvanceMission(s.mission, s.troopers)
+      }),
 
-        const nextTroopers = s.troopers.map(t => {
-          if (!t.active) return t
-          const jumpPackMax = t.special_gear === 'Jump Pack' ? maxUsesFor('Jump Pack') : t.special_gear_uses
-          return {
-            ...t,
-            suppressed: false,
-            def_modifier: 0,
-            special_gear_uses: jumpPackMax,
-          }
-        })
-
-        return {
-          troopers: nextTroopers,
-          mission: {
-            ...s.mission,
-            sectors: newSectors,
-            activeSectorId: nextSector.id,
-            advance_rolls: 0,
-            phase: 'advance' as const,
-            engagement: null,
-            transitionFromSectorId: fromSectorId,
-          },
-        }
+      bypassActiveSector: () => set((s) => {
+        if (!s.mission) return s
+        return clearAndAdvanceMission(s.mission, s.troopers)
       }),
 
       clearTransition: () => set((s) => {
