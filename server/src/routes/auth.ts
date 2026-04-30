@@ -3,6 +3,7 @@ import { getCookie, setCookie, deleteCookie } from 'hono/cookie'
 import type { Context, Next } from 'hono'
 import type { Database } from 'better-sqlite3'
 import { db as defaultDb } from '../db.js'
+import { makeRequireAuth } from '../middleware.js'
 import {
   hashPassword,
   verifyPassword,
@@ -23,17 +24,6 @@ interface CountRow {
   count: number
 }
 
-interface UserVar {
-  userId: number
-  username: string
-}
-
-declare module 'hono' {
-  interface ContextVariableMap {
-    user: UserVar
-  }
-}
-
 const MAX_AGE = SESSION_TTL_DAYS * 24 * 60 * 60
 
 function cookieOptions() {
@@ -43,25 +33,6 @@ function cookieOptions() {
     path: '/',
     maxAge: MAX_AGE,
     ...(process.env.NODE_ENV === 'production' ? { secure: true } : {}),
-  }
-}
-
-function makeRequireAuth(db: Database) {
-  return async function requireAuth(c: Context, next: Next): Promise<Response | void> {
-    const sessionId = getCookie(c, SESSION_COOKIE)
-
-    if (!sessionId) {
-      return c.json({ error: 'Unauthorized' }, 401)
-    }
-
-    const user = validateSession(sessionId, db)
-
-    if (!user) {
-      return c.json({ error: 'Unauthorized' }, 401)
-    }
-
-    c.set('user', user)
-    await next()
   }
 }
 

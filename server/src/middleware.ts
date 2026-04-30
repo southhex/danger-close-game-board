@@ -1,5 +1,6 @@
-import type { Context, Next } from 'hono'
+import type { Context, Next, MiddlewareHandler } from 'hono'
 import { getCookie } from 'hono/cookie'
+import type { Database } from 'better-sqlite3'
 import { db } from './db.js'
 import { SESSION_COOKIE, validateSession } from './auth.js'
 
@@ -14,8 +15,20 @@ declare module 'hono' {
   }
 }
 
+// Factory: create a requireAuth middleware bound to a specific db instance.
+// Use this in route factories that accept an injected db for testability.
+export function makeRequireAuth(db: Database): MiddlewareHandler {
+  return async function requireAuth(c: Context, next: Next): Promise<Response | void> {
+    const sessionId = getCookie(c, SESSION_COOKIE)
+    if (!sessionId) return c.json({ error: 'Unauthorized' }, 401)
+    const user = validateSession(sessionId, db)
+    if (!user) return c.json({ error: 'Unauthorized' }, 401)
+    c.set('user', user)
+    await next()
+  }
+}
+
 // requireAuth using the singleton db — suitable for routes that don't inject a test db.
-// Auth routes use their own injected version via makeRequireAuth in routes/auth.ts.
 export async function requireAuth(c: Context, next: Next): Promise<Response | void> {
   const sessionId = getCookie(c, SESSION_COOKIE)
 
