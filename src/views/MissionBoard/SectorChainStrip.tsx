@@ -39,6 +39,9 @@ export default function SectorChainStrip() {
 
   function handleActivate(id: string) {
     if (id === activeSectorId) return
+    const target = sectors?.find(s => s.id === id)
+    // Cleared sectors are terminal — store no-ops on activation; UI also disables the button.
+    if (!target || target.status === 'cleared') return
     // Confirm only if there's in-progress engagement state to discard
     const inProgress = !!mission && (mission.phase !== 'advance' || !!mission.engagement || mission.advance_rolls > 0)
     if (inProgress) {
@@ -56,6 +59,17 @@ export default function SectorChainStrip() {
   const pendingSwitchSector = pendingSwitchId
     ? sectors.find(s => s.id === pendingSwitchId)
     : undefined
+  const currentSector = activeSectorId
+    ? sectors.find(s => s.id === activeSectorId)
+    : undefined
+  const switchMessage = (() => {
+    if (!pendingSwitchSector || !currentSector) return ''
+    const losses: string[] = []
+    if (mission?.engagement) losses.push('current engagement')
+    if (mission && mission.advance_rolls > 0) losses.push(`${mission.advance_rolls} advance roll${mission.advance_rolls === 1 ? '' : 's'} of fatigue`)
+    const lossLine = losses.length > 0 ? ` Discards: ${losses.join(', ')}.` : ''
+    return `Leave ${currentSector.name} and activate ${pendingSwitchSector.name}? ${currentSector.name} will revert to PENDING.${lossLine}`
+  })()
 
   return (
     <>
@@ -76,8 +90,10 @@ export default function SectorChainStrip() {
             >
               <button
                 onClick={() => handleActivate(s.id)}
-                className="flex items-center gap-1.5"
-                aria-label={`Activate sector ${s.name}`}
+                disabled={isCleared}
+                className={`flex items-center gap-1.5 ${isCleared ? 'cursor-not-allowed' : ''}`}
+                aria-label={isCleared ? `${s.name} (cleared, locked)` : `Activate sector ${s.name}`}
+                title={isCleared ? 'Cleared — cannot reactivate' : undefined}
               >
                 <span className={`text-[9px] ${statusDotColor(s.status)}`}>●</span>
                 <span className={isCleared ? 'line-through' : ''}>{s.name}</span>
@@ -112,7 +128,7 @@ export default function SectorChainStrip() {
       <ConfirmDialog
         open={pendingSwitchId !== null}
         title="SWITCH SECTOR"
-        message={`Switch to "${pendingSwitchSector?.name ?? ''}"? Current engagement and advance roll progress will be discarded.`}
+        message={switchMessage}
         confirmLabel="SWITCH"
         tone="default"
         onConfirm={confirmSwitch}
