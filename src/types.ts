@@ -179,4 +179,17 @@ export interface ApplyAdvancePayload {
   trooperOffpos?: Record<string, OffensivePosition>
 }
 
-export type View = 'barracks' | 'mission' | 'settings'
+export type View = 'hq' | 'barracks' | 'armoury' | 'mission' | 'settings'
+
+export interface Campaign {
+  id: string
+  name: string
+  description: string
+  created_at: string
+}
+
+export interface User {
+  username: string
+}
+
+export type AuthStatus = 'loading' | 'setup_required' | 'unauthenticated' | 'authenticated'

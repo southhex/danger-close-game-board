@@ -1,9 +1,9 @@
 import { create } from 'zustand'
-import { persist, createJSONStorage } from 'zustand/middleware'
 import type {
   AppState, Trooper, MissionState, MissionSector, DiceRoll, ApplyAdvancePayload, View,
   EngagementState, TrooperIntent, OffenseResult, DefenseResult, EnemyTactic,
   HardTarget, AttachedForce, TrooperStatus,
+  Campaign, User, AuthStatus,
 } from '../types'
 import { gearByName } from '../data/gear'
 import {
@@ -12,11 +12,38 @@ import {
   pressureIncreases,
 } from '../utils/gameRules'
 import { newId } from '../utils/id'
+import { apiFetch, AuthError } from '../api/client'
+import { fetchBootstrap, SetupRequiredError } from '../api/bootstrap'
+import { scheduleSync } from '../api/sync'
 
 interface Store extends AppState {
   currentView: View
   diceTrayOpen: boolean
 
+  // Auth + campaign state
+  authStatus: AuthStatus
+  user: User | null
+  campaigns: Campaign[]
+  currentCampaignId: string | null
+  syncStatus: 'idle' | 'syncing' | 'error'
+
+  // Auth actions
+  bootstrap: () => Promise<void>
+  login: (username: string, password: string) => Promise<void>
+  logout: () => Promise<void>
+  setup: (username: string, password: string) => Promise<void>
+  changePassword: (current: string, newPwd: string) => Promise<void>
+
+  // Campaign actions
+  createCampaign: (name: string, description?: string) => Promise<Campaign>
+  deleteCampaign: (id: string) => Promise<void>
+  renameCampaign: (id: string, name: string, description?: string) => Promise<void>
+  selectCampaign: (id: string) => Promise<void>
+
+  // Sync
+  setSyncStatus: (status: 'idle' | 'syncing' | 'error') => void
+
+  // Trooper actions
   addTrooper: (t: Omit<Trooper, 'id'>) => void
   updateTrooper: (id: string, patch: Partial<Trooper>) => void
   deleteTrooper: (id: string) => void
@@ -32,6 +59,7 @@ interface Store extends AppState {
   setView: (v: View) => void
   setDiceTrayOpen: (open: boolean) => void
 
+  // Legacy (kept for test compatibility)
   importState: (raw: unknown) => void
   exportState: () => AppState
 
@@ -45,7 +73,7 @@ interface Store extends AppState {
   setMissionPhase: (phase: 'advance' | 'engagement' | 'catch_breath' | 'mission_complete') => void
   endMission: () => void
 
-  // Sector clear-and-advance (used by overwhelm and bypass paths)
+  // Sector clear-and-advance
   overwhelmActiveSector: () => void
   bypassActiveSector: () => void
 
@@ -112,12 +140,6 @@ function resetTrooperForMission(t: Trooper): Trooper {
   }
 }
 
-// Shared by advanceToNextSector / overwhelmActiveSector / bypassActiveSector.
-// Marks the active sector cleared, then either activates the next pending
-// sector (phase='advance') or, if none, transitions to catch_breath so the
-// user can choose to add a sector or end the mission. Resets advance_rolls
-// and trooper transient state; sets transitionFromSectorId for the
-// post-advance banner. Caller must ensure mission is non-null.
 function clearAndAdvanceMission(
   mission: MissionState,
   troopers: Trooper[],
@@ -127,7 +149,6 @@ function clearAndAdvanceMission(
   const currentIdx = sectors.findIndex(sec => sec.id === fromSectorId)
   const nextSector = sectors.slice(currentIdx + 1).find(sec => sec.status === 'pending')
 
-  // Mark current cleared regardless of whether a next sector exists.
   const clearedSectors = sectors.map(sec =>
     sec.id === fromSectorId ? { ...sec, status: 'cleared' as const } : sec,
   )
@@ -193,7 +214,6 @@ function advanceStatusByInjury(status: TrooperStatus): TrooperStatus {
   if (status === 'ok') return 'grazed'
   if (status === 'grazed') return 'wounded'
   if (status === 'wounded') return 'bleedingout'
-  // bleedingout and dead both stay as-is during engagement
   return status
 }
 
@@ -218,37 +238,204 @@ function initialEngagementState(): EngagementState {
 }
 
 export const useStore = create<Store>()(
-  persist(
-    (set, get) => ({
-      troopers: [],
-      mission: null,
-      diceHistory: [],
-      currentView: 'barracks',
-      diceTrayOpen: false,
+  (set, get) => ({
+    // ── Base state ─────────────────────────────────────────────────────────────
+    troopers: [],
+    mission: null,
+    diceHistory: [],
+    currentView: 'barracks',
+    diceTrayOpen: false,
 
-      addTrooper: (t) => set((s) => ({ troopers: [...s.troopers, { ...t, id: newId() }] })),
+    // Auth + campaign state
+    authStatus: 'loading',
+    user: null,
+    campaigns: [],
+    currentCampaignId: null,
+    syncStatus: 'idle',
 
-      updateTrooper: (id, patch) => set((s) => ({
+    // ── Auth actions ───────────────────────────────────────────────────────────
+
+    bootstrap: async () => {
+      try {
+        const { user, campaigns } = await fetchBootstrap()
+        set({ authStatus: 'authenticated', user, campaigns })
+      } catch (err) {
+        if (err instanceof SetupRequiredError) {
+          set({ authStatus: 'setup_required', user: null, campaigns: [] })
+        } else if (err instanceof AuthError) {
+          set({ authStatus: 'unauthenticated', user: null, campaigns: [] })
+        } else {
+          // Network error etc — treat as unauthenticated
+          set({ authStatus: 'unauthenticated', user: null, campaigns: [] })
+        }
+      }
+    },
+
+    login: async (username, password) => {
+      const res = await apiFetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password }),
+      })
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        throw new Error((body as { error?: string }).error ?? 'Login failed')
+      }
+      await get().bootstrap()
+    },
+
+    logout: async () => {
+      await apiFetch('/api/auth/logout', { method: 'POST' }).catch(() => {})
+      set({
+        authStatus: 'unauthenticated',
+        user: null,
+        campaigns: [],
+        currentCampaignId: null,
+        troopers: [],
+        mission: null,
+        diceHistory: [],
+      })
+    },
+
+    setup: async (username, password) => {
+      const res = await apiFetch('/api/auth/setup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password }),
+      })
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        throw new Error((body as { error?: string }).error ?? 'Setup failed')
+      }
+      await get().bootstrap()
+    },
+
+    changePassword: async (current, newPwd) => {
+      const res = await apiFetch('/api/auth/change-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ currentPassword: current, newPassword: newPwd }),
+      })
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        throw new Error((body as { error?: string }).error ?? 'Password change failed')
+      }
+    },
+
+    // ── Campaign actions ───────────────────────────────────────────────────────
+
+    createCampaign: async (name, description = '') => {
+      const res = await apiFetch('/api/campaigns', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, description }),
+      })
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        throw new Error((body as { error?: string }).error ?? 'Create campaign failed')
+      }
+      const campaign = await res.json() as Campaign
+      set(s => ({ campaigns: [...s.campaigns, campaign] }))
+      return campaign
+    },
+
+    deleteCampaign: async (id) => {
+      const res = await apiFetch(`/api/campaigns/${id}`, { method: 'DELETE' })
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        throw new Error((body as { error?: string }).error ?? 'Delete campaign failed')
+      }
+      set(s => {
+        const campaigns = s.campaigns.filter(c => c.id !== id)
+        const currentCampaignId = s.currentCampaignId === id ? null : s.currentCampaignId
+        return { campaigns, currentCampaignId }
+      })
+    },
+
+    renameCampaign: async (id, name, description) => {
+      const res = await apiFetch(`/api/campaigns/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, ...(description !== undefined ? { description } : {}) }),
+      })
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        throw new Error((body as { error?: string }).error ?? 'Rename campaign failed')
+      }
+      const updated = await res.json() as Campaign
+      set(s => ({
+        campaigns: s.campaigns.map(c => c.id === id ? updated : c),
+      }))
+    },
+
+    selectCampaign: async (id) => {
+      const res = await apiFetch(`/api/campaigns/${id}`)
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        throw new Error((body as { error?: string }).error ?? 'Load campaign failed')
+      }
+      const data = await res.json() as { troopers: Trooper[]; mission: MissionState | null; diceHistory: DiceRoll[] }
+      set({
+        currentCampaignId: id,
+        troopers: data.troopers ?? [],
+        mission: data.mission ?? null,
+        diceHistory: data.diceHistory ?? [],
+      })
+    },
+
+    setSyncStatus: (status) => set({ syncStatus: status }),
+
+    // ── Trooper actions ────────────────────────────────────────────────────────
+
+    addTrooper: (t) => {
+      if (get().authStatus === 'authenticated' && !get().currentCampaignId) return
+      set((s) => ({ troopers: [...s.troopers, { ...t, id: newId() }] }))
+      scheduleSync()
+    },
+
+    updateTrooper: (id, patch) => {
+      if (get().authStatus === 'authenticated' && !get().currentCampaignId) return
+      set((s) => ({
         troopers: s.troopers.map(t => t.id === id ? clampTrooper({ ...t, ...patch }) : t),
-      })),
+      }))
+      scheduleSync()
+    },
 
-      deleteTrooper: (id) => set((s) => ({ troopers: s.troopers.filter(t => t.id !== id) })),
+    deleteTrooper: (id) => {
+      if (get().authStatus === 'authenticated' && !get().currentCampaignId) return
+      set((s) => ({ troopers: s.troopers.filter(t => t.id !== id) }))
+      scheduleSync()
+    },
 
-      prepareMission: () => set((s) => ({
+    prepareMission: () => {
+      if (get().authStatus === 'authenticated' && !get().currentCampaignId) return
+      set((s) => ({
         troopers: s.troopers.map(t => t.active ? resetTrooperForMission(t) : t),
         mission: s.mission ?? { ...DEFAULT_MISSION, id: newId() },
-      })),
+      }))
+      scheduleSync()
+    },
 
-      setMission: (patch) => set((s) => ({
+    setMission: (patch) => {
+      if (get().authStatus === 'authenticated' && !get().currentCampaignId) return
+      set((s) => ({
         mission: s.mission ? { ...s.mission, ...patch, momentum: 'momentum' in patch ? clampMomentum(patch.momentum!) : s.mission.momentum } : null,
-      })),
+      }))
+      scheduleSync()
+    },
 
-      resetMission: () => set((s) => ({
+    resetMission: () => {
+      if (get().authStatus === 'authenticated' && !get().currentCampaignId) return
+      set((s) => ({
         mission: { ...DEFAULT_MISSION, id: newId() },
         troopers: s.troopers.map(t => t.active ? resetTrooperForMission(t) : t),
-      })),
+      }))
+      scheduleSync()
+    },
 
-      applyAdvanceResult: ({ result, trooperOffpos }) => set((s) => {
+    applyAdvanceResult: ({ result, trooperOffpos }) => {
+      if (get().authStatus === 'authenticated' && !get().currentCampaignId) return
+      set((s) => {
         if (!s.mission) return s
         const dpos = defposForResult(result)
         const mom = momentumForResult(result)
@@ -269,20 +456,30 @@ export const useStore = create<Store>()(
             stealth: clearStealth ? false : s.mission.stealth,
           },
         }
-      }),
+      })
+      scheduleSync()
+    },
 
-      addRoll: (roll) => set((s) => ({
+    addRoll: (roll) => {
+      set((s) => ({
         diceHistory: [roll, ...s.diceHistory].slice(0, DICE_HISTORY_CAP),
-      })),
+      }))
+      if (get().currentCampaignId) scheduleSync()
+    },
 
-      clearHistory: () => set({ diceHistory: [] }),
+    clearHistory: () => {
+      set({ diceHistory: [] })
+      if (get().currentCampaignId) scheduleSync()
+    },
 
-      setView: (v) => set({ currentView: v }),
-      setDiceTrayOpen: (open) => set({ diceTrayOpen: open }),
+    setView: (v) => set({ currentView: v }),
+    setDiceTrayOpen: (open) => set({ diceTrayOpen: open }),
 
-      // ── Sector actions ──────────────────────────────────────────────────────
+    // ── Sector actions ─────────────────────────────────────────────────────────
 
-      addSector: (sector) => set((s) => {
+    addSector: (sector) => {
+      if (get().authStatus === 'authenticated' && !get().currentCampaignId) return
+      set((s) => {
         if (!s.mission) return s
         return {
           mission: {
@@ -290,9 +487,13 @@ export const useStore = create<Store>()(
             sectors: [...s.mission.sectors, { ...sector, id: newId(), status: 'pending' as const }],
           },
         }
-      }),
+      })
+      scheduleSync()
+    },
 
-      updateSector: (id, patch) => set((s) => {
+    updateSector: (id, patch) => {
+      if (get().authStatus === 'authenticated' && !get().currentCampaignId) return
+      set((s) => {
         if (!s.mission) return s
         return {
           mission: {
@@ -300,11 +501,14 @@ export const useStore = create<Store>()(
             sectors: s.mission.sectors.map(sec => sec.id === id ? { ...sec, ...patch } : sec),
           },
         }
-      }),
+      })
+      scheduleSync()
+    },
 
-      deleteSector: (id) => set((s) => {
+    deleteSector: (id) => {
+      if (get().authStatus === 'authenticated' && !get().currentCampaignId) return
+      set((s) => {
         if (!s.mission) return s
-        // Do not delete active sector
         if (s.mission.activeSectorId === id) return s
         return {
           mission: {
@@ -312,13 +516,15 @@ export const useStore = create<Store>()(
             sectors: s.mission.sectors.filter(sec => sec.id !== id),
           },
         }
-      }),
+      })
+      scheduleSync()
+    },
 
-      setActiveSector: (id) => set((s) => {
+    setActiveSector: (id) => {
+      if (get().authStatus === 'authenticated' && !get().currentCampaignId) return
+      set((s) => {
         if (!s.mission) return s
         const target = s.mission.sectors.find(sec => sec.id === id)
-        // Cleared sectors are terminal — clicking the chip is a no-op so the
-        // user can't silently reopen them. The ✎ button still edits.
         if (!target || target.status === 'cleared') return s
         return {
           mission: {
@@ -330,25 +536,31 @@ export const useStore = create<Store>()(
             transitionFromSectorId: null,
             sectors: s.mission.sectors.map(sec => {
               if (sec.id === id) return { ...sec, status: 'active' as const }
-              // Only demote if the previously-active sector is still 'active'.
-              // A cleared sector that happened to also be activeSectorId stays cleared.
               if (sec.status === 'active') return { ...sec, status: 'pending' as const }
               return sec
             }),
           },
         }
-      }),
+      })
+      scheduleSync()
+    },
 
-      // ── Mission phase ────────────────────────────────────────────────────────
+    // ── Mission phase ──────────────────────────────────────────────────────────
 
-      setMissionPhase: (phase) => set((s) => {
+    setMissionPhase: (phase) => {
+      if (get().authStatus === 'authenticated' && !get().currentCampaignId) return
+      set((s) => {
         if (!s.mission) return s
         return { mission: { ...s.mission, phase } }
-      }),
+      })
+      scheduleSync()
+    },
 
-      // ── Engagement lifecycle ─────────────────────────────────────────────────
+    // ── Engagement lifecycle ───────────────────────────────────────────────────
 
-      beginEngagement: () => set((s) => {
+    beginEngagement: () => {
+      if (get().authStatus === 'authenticated' && !get().currentCampaignId) return
+      set((s) => {
         if (!s.mission) return s
         return {
           mission: {
@@ -357,9 +569,13 @@ export const useStore = create<Store>()(
             engagement: initialEngagementState(),
           },
         }
-      }),
+      })
+      scheduleSync()
+    },
 
-      updateEngagement: (patch) => set((s) => {
+    updateEngagement: (patch) => {
+      if (get().authStatus === 'authenticated' && !get().currentCampaignId) return
+      set((s) => {
         if (!s.mission || !s.mission.engagement) return s
         return {
           mission: {
@@ -367,9 +583,13 @@ export const useStore = create<Store>()(
             engagement: { ...s.mission.engagement, ...patch },
           },
         }
-      }),
+      })
+      scheduleSync()
+    },
 
-      setExchangeStep: (step) => set((s) => {
+    setExchangeStep: (step) => {
+      if (get().authStatus === 'authenticated' && !get().currentCampaignId) return
+      set((s) => {
         if (!s.mission || !s.mission.engagement) return s
         return {
           mission: {
@@ -377,9 +597,13 @@ export const useStore = create<Store>()(
             engagement: { ...s.mission.engagement, step },
           },
         }
-      }),
+      })
+      scheduleSync()
+    },
 
-      setTrooperIntent: (trooperId, intent) => set((s) => {
+    setTrooperIntent: (trooperId, intent) => {
+      if (get().authStatus === 'authenticated' && !get().currentCampaignId) return
+      set((s) => {
         if (!s.mission || !s.mission.engagement) return s
         return {
           mission: {
@@ -390,9 +614,13 @@ export const useStore = create<Store>()(
             },
           },
         }
-      }),
+      })
+      scheduleSync()
+    },
 
-      resolveOffenseRoll: (result) => set((s) => {
+    resolveOffenseRoll: (result) => {
+      if (get().authStatus === 'authenticated' && !get().currentCampaignId) return
+      set((s) => {
         if (!s.mission || !s.mission.engagement) return s
         const newMomentum = clampMomentum(s.mission.momentum + result.momentumDelta)
         return {
@@ -406,12 +634,16 @@ export const useStore = create<Store>()(
             },
           },
         }
-      }),
+      })
+      scheduleSync()
+    },
 
-      resolveDefenseRoll: (trooperId, result) => set((s) => {
+    resolveDefenseRoll: (trooperId, result) => {
+      if (get().authStatus === 'authenticated' && !get().currentCampaignId) return
+      set((s) => {
         if (!s.mission || !s.mission.engagement) return s
         let nextTroopers = s.troopers
-        let trooperDied = s.mission.engagement.trooperDiedLastExchange
+        const trooperDied = s.mission.engagement.trooperDiedLastExchange
         if (result.resolution === 'injury' && result.injuryCount && result.injuryCount > 0) {
           nextTroopers = s.troopers.map(t => {
             if (t.id !== trooperId) return t
@@ -441,20 +673,22 @@ export const useStore = create<Store>()(
             },
           },
         }
-      }),
+      })
+      scheduleSync()
+    },
 
-      resolveEnemyTactics: ({ naturalD6, total: _total, tactic, repositionTrooperId, scatterTrooperId }) => set((s) => {
+    resolveEnemyTactics: ({ naturalD6, total: _total, tactic, repositionTrooperId, scatterTrooperId }) => {
+      if (get().authStatus === 'authenticated' && !get().currentCampaignId) return
+      set((s) => {
         if (!s.mission || !s.mission.engagement) return s
         const eng = s.mission.engagement
 
-        // 1. Pressure increase
         const activeSector = s.mission.sectors.find(sec => sec.id === s.mission!.activeSectorId)
         const pressureCap = activeSector ? activeSector.tl + 1 : 5
         const newPressure = pressureIncreases(naturalD6)
           ? Math.min(eng.pressure + 1, pressureCap)
           : eng.pressure
 
-        // 2. Compute nextExchangeModifiers and trooper changes based on tactic
         let nextMods = { ...eng.nextExchangeModifiers }
         let nextTroopers = s.troopers
 
@@ -500,14 +734,17 @@ export const useStore = create<Store>()(
             },
           },
         }
-      }),
+      })
+      scheduleSync()
+    },
 
-      beginNextExchange: () => set((s) => {
+    beginNextExchange: () => {
+      if (get().authStatus === 'authenticated' && !get().currentCampaignId) return
+      set((s) => {
         if (!s.mission || !s.mission.engagement) return s
         const eng = s.mission.engagement
         const mods = eng.nextExchangeModifiers
 
-        // Apply flankingDefPenalty to troopers
         let nextTroopers = s.troopers
         if (mods.flankingDefPenalty.length > 0) {
           nextTroopers = s.troopers.map(t =>
@@ -515,12 +752,10 @@ export const useStore = create<Store>()(
           )
         }
 
-        // Handle suppressed lifecycle: clear suppressed if trooper is fortified
         nextTroopers = nextTroopers.map(t =>
           t.active && t.suppressed && t.defpos === 'fortified' ? { ...t, suppressed: false } : t,
         )
 
-        // Decrement radioStrikeCountdown
         let newCountdown = eng.radioStrikeCountdown
         if (newCountdown !== null) {
           newCountdown = newCountdown > 0 ? newCountdown - 1 : 0
@@ -544,11 +779,14 @@ export const useStore = create<Store>()(
             },
           },
         }
-      }),
+      })
+      scheduleSync()
+    },
 
-      endEngagement: (outcome) => set((s) => {
+    endEngagement: (outcome) => {
+      if (get().authStatus === 'authenticated' && !get().currentCampaignId) return
+      set((s) => {
         if (!s.mission) return s
-        // Victory clears the current sector. Defeat/disengage leave its status alone.
         const newSectors = outcome === 'victory'
           ? s.mission.sectors.map(sec =>
               sec.id === s.mission!.activeSectorId ? { ...sec, status: 'cleared' as const } : sec,
@@ -561,9 +799,13 @@ export const useStore = create<Store>()(
             phase: 'catch_breath' as const,
           },
         }
-      }),
+      })
+      scheduleSync()
+    },
 
-      endMission: () => set((s) => {
+    endMission: () => {
+      if (get().authStatus === 'authenticated' && !get().currentCampaignId) return
+      set((s) => {
         if (!s.mission) return s
         return {
           mission: {
@@ -572,37 +814,54 @@ export const useStore = create<Store>()(
             engagement: null,
           },
         }
-      }),
+      })
+      scheduleSync()
+    },
 
-      advanceToNextSector: () => set((s) => {
+    advanceToNextSector: () => {
+      if (get().authStatus === 'authenticated' && !get().currentCampaignId) return
+      set((s) => {
         if (!s.mission) return s
         return clearAndAdvanceMission(s.mission, s.troopers)
-      }),
+      })
+      scheduleSync()
+    },
 
-      // Used by overwhelm + bypass: same shape as advanceToNextSector but distinct
-      // names so call-sites read self-explanatorily.
-      overwhelmActiveSector: () => set((s) => {
+    overwhelmActiveSector: () => {
+      if (get().authStatus === 'authenticated' && !get().currentCampaignId) return
+      set((s) => {
         if (!s.mission) return s
         return clearAndAdvanceMission(s.mission, s.troopers)
-      }),
+      })
+      scheduleSync()
+    },
 
-      bypassActiveSector: () => set((s) => {
+    bypassActiveSector: () => {
+      if (get().authStatus === 'authenticated' && !get().currentCampaignId) return
+      set((s) => {
         if (!s.mission) return s
         return clearAndAdvanceMission(s.mission, s.troopers)
-      }),
+      })
+      scheduleSync()
+    },
 
-      clearTransition: () => set((s) => {
+    clearTransition: () => {
+      if (get().authStatus === 'authenticated' && !get().currentCampaignId) return
+      set((s) => {
         if (!s.mission) return s
         return { mission: { ...s.mission, transitionFromSectorId: null } }
-      }),
+      })
+      scheduleSync()
+    },
 
-      // ── Hard targets & attached forces ──────────────────────────────────────
+    // ── Hard targets & attached forces ─────────────────────────────────────────
 
-      applyHardTargetHit: (targetId, atCost, costTrooperId) => set((s) => {
+    applyHardTargetHit: (targetId, atCost, costTrooperId) => {
+      if (get().authStatus === 'authenticated' && !get().currentCampaignId) return
+      set((s) => {
         if (!s.mission || !s.mission.engagement) return s
-        const hitsToApply = 1
         const newTargets = s.mission.engagement.hardTargets
-          .map(ht => ht.id === targetId ? { ...ht, currentHp: ht.currentHp - hitsToApply } : ht)
+          .map(ht => ht.id === targetId ? { ...ht, currentHp: ht.currentHp - 1 } : ht)
           .filter(ht => ht.currentHp > 0)
 
         let nextTroopers = s.troopers
@@ -619,9 +878,13 @@ export const useStore = create<Store>()(
             engagement: { ...s.mission.engagement, hardTargets: newTargets },
           },
         }
-      }),
+      })
+      scheduleSync()
+    },
 
-      updatePressure: (delta) => set((s) => {
+    updatePressure: (delta) => {
+      if (get().authStatus === 'authenticated' && !get().currentCampaignId) return
+      set((s) => {
         if (!s.mission || !s.mission.engagement) return s
         const activeSector = s.mission.sectors.find(sec => sec.id === s.mission!.activeSectorId)
         const pressureCap = activeSector ? activeSector.tl + 1 : 5
@@ -632,9 +895,13 @@ export const useStore = create<Store>()(
             engagement: { ...s.mission.engagement, pressure: newPressure },
           },
         }
-      }),
+      })
+      scheduleSync()
+    },
 
-      commitAttachedForce: (forceId) => set((s) => {
+    commitAttachedForce: (forceId) => {
+      if (get().authStatus === 'authenticated' && !get().currentCampaignId) return
+      set((s) => {
         if (!s.mission || !s.mission.engagement) return s
         return {
           mission: {
@@ -647,16 +914,19 @@ export const useStore = create<Store>()(
             },
           },
         }
-      }),
+      })
+      scheduleSync()
+    },
 
-      resolveAttachedForceDice: (forceId, results) => set((s) => {
+    resolveAttachedForceDice: (forceId, results) => {
+      if (get().authStatus === 'authenticated' && !get().currentCampaignId) return
+      set((s) => {
         if (!s.mission || !s.mission.engagement) return s
         const losses = results.filter(r => r === 1).length
         const updatedForces = s.mission.engagement.attachedForces
           .map(af => {
             if (af.id !== forceId) return af
-            const newDice = af.dice - losses
-            return { ...af, dice: newDice }
+            return { ...af, dice: af.dice - losses }
           })
           .filter(af => af.dice > 0)
 
@@ -666,9 +936,13 @@ export const useStore = create<Store>()(
             engagement: { ...s.mission.engagement, attachedForces: updatedForces },
           },
         }
-      }),
+      })
+      scheduleSync()
+    },
 
-      addHardTarget: (ht) => set((s) => {
+    addHardTarget: (ht) => {
+      if (get().authStatus === 'authenticated' && !get().currentCampaignId) return
+      set((s) => {
         if (!s.mission || !s.mission.engagement) return s
         return {
           mission: {
@@ -679,9 +953,13 @@ export const useStore = create<Store>()(
             },
           },
         }
-      }),
+      })
+      scheduleSync()
+    },
 
-      addAttachedForce: (af) => set((s) => {
+    addAttachedForce: (af) => {
+      if (get().authStatus === 'authenticated' && !get().currentCampaignId) return
+      set((s) => {
         if (!s.mission || !s.mission.engagement) return s
         return {
           mission: {
@@ -692,9 +970,13 @@ export const useStore = create<Store>()(
             },
           },
         }
-      }),
+      })
+      scheduleSync()
+    },
 
-      nullifyTactic: (trooperId) => set((s) => {
+    nullifyTactic: (trooperId) => {
+      if (get().authStatus === 'authenticated' && !get().currentCampaignId) return
+      set((s) => {
         if (!s.mission || !s.mission.engagement) return s
         return {
           troopers: s.troopers.map(t =>
@@ -705,84 +987,30 @@ export const useStore = create<Store>()(
             engagement: { ...s.mission.engagement, pendingTactic: null },
           },
         }
-      }),
-
-      importState: (raw) => {
-        if (!raw || typeof raw !== 'object') throw new Error('Invalid import: not an object')
-        const r = raw as Partial<AppState>
-        if (!Array.isArray(r.troopers)) throw new Error('Invalid import: missing troopers')
-        try {
-          set({
-            troopers: r.troopers,
-            mission: r.mission ?? null,
-            diceHistory: Array.isArray(r.diceHistory) ? r.diceHistory : [],
-          })
-        } catch (e) {
-          throw new Error('Invalid import: data could not be applied')
-        }
-      },
-
-      exportState: () => {
-        const { troopers, mission, diceHistory } = get()
-        return { troopers, mission, diceHistory }
-      },
-    }),
-    {
-      name: 'danger-close-app-state',
-      version: 3,
-      migrate: (persistedState: unknown, version: number) => {
-        // Migration is cumulative: each block falls through to the next so that
-        // a v0 user runs v1 → v2 → v3 in sequence. All blocks mutate the same
-        // persistedState object via local casts; do not add early returns.
-        if (version < 1) {
-          const state = persistedState as Record<string, unknown>
-          if (Array.isArray(state.troopers)) {
-            state.troopers = (state.troopers as Record<string, unknown>[]).map(t => ({
-              ...t,
-              tag: t.tag ?? '',
-              grit_max: t.grit_max ?? 3,
-              ammo_max: t.ammo_max ?? 3,
-              perks: t.perks ?? (t.perk ? [{ name: t.perk, description: '' }] : []),
-              perk: undefined,
-            }))
-          }
-        }
-        if (version < 2) {
-          const state = persistedState as Record<string, unknown>
-          if (state.mission && typeof state.mission === 'object') {
-            const m = state.mission as Record<string, unknown>
-            if (m.sector && !m.sectors) {
-              const oldSector = m.sector as Record<string, unknown>
-              m.sectors = [{ id: 'sector-1', ...oldSector, status: 'active' }]
-              m.activeSectorId = 'sector-1'
-              delete m.sector
-            } else if (!m.sectors) {
-              m.sectors = [{ id: 'sector-1', name: 'Sector Alpha', cover: 1, space: 1, tl: 2, weather: 0, status: 'active' }]
-              m.activeSectorId = 'sector-1'
-            }
-            m.phase = m.phase ?? 'advance'
-            m.engagement = m.engagement ?? null
-          }
-        }
-        if (version < 3) {
-          const state = persistedState as Record<string, unknown>
-          if (state.mission && typeof state.mission === 'object') {
-            const m = state.mission as Record<string, unknown>
-            if (m.transitionFromSectorId === undefined) {
-              m.transitionFromSectorId = null
-            }
-          }
-        }
-        return persistedState as Record<string, unknown>
-      },
-      storage: createJSONStorage(() => localStorage),
-      partialize: (s) => ({
-        troopers: s.troopers,
-        mission: s.mission,
-        diceHistory: s.diceHistory,
-      // cast required: Zustand's partialize types expect the full Store back,
-      // but we intentionally return a subset — this is the standard workaround
-      }) as unknown as Store,
+      })
+      scheduleSync()
     },
-  ),
+
+    // ── Legacy actions (kept for test compatibility) ────────────────────────────
+
+    importState: (raw) => {
+      if (!raw || typeof raw !== 'object') throw new Error('Invalid import: not an object')
+      const r = raw as Partial<AppState>
+      if (!Array.isArray(r.troopers)) throw new Error('Invalid import: missing troopers')
+      try {
+        set({
+          troopers: r.troopers,
+          mission: r.mission ?? null,
+          diceHistory: Array.isArray(r.diceHistory) ? r.diceHistory : [],
+        })
+      } catch {
+        throw new Error('Invalid import: data could not be applied')
+      }
+    },
+
+    exportState: () => {
+      const { troopers, mission, diceHistory } = get()
+      return { troopers, mission, diceHistory }
+    },
+  }),
 )

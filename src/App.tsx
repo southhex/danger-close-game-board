@@ -1,4 +1,4 @@
-import { type ComponentType } from 'react'
+import { type ComponentType, useEffect } from 'react'
 import { ToastProvider } from './components'
 import { useStore } from './store'
 import { useMediaQuery } from './hooks/useMediaQuery'
@@ -7,6 +7,8 @@ import Barracks from './views/Barracks/Barracks'
 import MissionBoard from './views/MissionBoard/MissionBoard'
 import Settings from './views/Settings/Settings'
 import DiceTray from './views/DiceTray/DiceTray'
+import Login from './views/Auth/Login'
+import Setup from './views/Auth/Setup'
 
 const NAV = [
   { id: 'barracks', label: 'Barracks', glyph: '⊞' },
@@ -17,13 +19,28 @@ const NAV = [
 
 type NavId = typeof NAV[number]['id']
 
-const VIEW_COMPONENTS: Record<Exclude<View, 'dice'>, ComponentType> = {
+const VIEW_COMPONENTS: Record<Exclude<View, 'dice' | 'hq' | 'armoury'>, ComponentType> = {
   barracks: Barracks,
   mission:  MissionBoard,
   settings: Settings,
 }
 
+function LoadingScreen() {
+  return (
+    <div className="min-h-screen bg-bg flex items-center justify-center">
+      <div className="flex items-center gap-2.5">
+        <div className="w-7 h-7 bg-accent text-bg flex items-center justify-center font-bold text-[12px]">
+          DC
+        </div>
+        <div className="text-[13px] text-muted">Loading…</div>
+      </div>
+    </div>
+  )
+}
+
 export default function App() {
+  const authStatus  = useStore(s => s.authStatus)
+  const bootstrap   = useStore(s => s.bootstrap)
   const view        = useStore(s => s.currentView)
   const setView     = useStore(s => s.setView)
   const diceOpen    = useStore(s => s.diceTrayOpen)
@@ -31,6 +48,15 @@ export default function App() {
   const allTroopers = useStore(s => s.troopers)
   const mission     = useStore(s => s.mission)
   const isDesktop   = useMediaQuery('(min-width: 768px)')
+
+  useEffect(() => {
+    bootstrap().catch(() => {})
+  }, [])
+
+  // Auth gate
+  if (authStatus === 'loading') return <ToastProvider><LoadingScreen /></ToastProvider>
+  if (authStatus === 'setup_required') return <ToastProvider><Setup /></ToastProvider>
+  if (authStatus === 'unauthenticated') return <ToastProvider><Login /></ToastProvider>
 
   const activeTrooperCount = allTroopers.filter(t => t.active).length
 
@@ -45,7 +71,7 @@ export default function App() {
     return { title: 'Settings', sub: null }
   }
   const { title, sub } = pageTitle()
-  const CurrentView = VIEW_COMPONENTS[view as Exclude<View, 'dice'>] ?? Barracks
+  const CurrentView = VIEW_COMPONENTS[view as Exclude<View, 'dice' | 'hq' | 'armoury'>] ?? Barracks
 
   return (
     <ToastProvider>
