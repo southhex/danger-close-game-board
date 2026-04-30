@@ -218,6 +218,13 @@ export function createAuthRoutes(db: Database = defaultDb): Hono {
       user.userId
     )
 
+    // Revoke all sessions for this user
+    db.prepare<[number]>('DELETE FROM sessions WHERE user_id = ?').run(user.userId)
+
+    // Issue a fresh session so the current request remains authenticated
+    const newSessionId = createSession(user.userId, db)
+    setCookie(c, SESSION_COOKIE, newSessionId, cookieOptions())
+
     return c.json({ ok: true })
   })
 

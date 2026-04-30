@@ -258,6 +258,42 @@ describe('POST /api/auth/change-password', () => {
     })
     expect(res.status).toBe(401)
   })
+
+  it('old session is rejected and new session is valid after password change', async () => {
+    // Get a second session by logging in separately
+    const loginRes = await app.request('/api/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username: 'admin', password: 'oldpassword' }),
+    })
+    expect(loginRes.status).toBe(200)
+    const session2Cookie = `dc_session=${extractCookie(loginRes, 'dc_session')}`
+
+    // Change password using session 1
+    const changeRes = await app.request('/api/auth/change-password', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Cookie: sessionCookie,
+      },
+      body: JSON.stringify({ currentPassword: 'oldpassword', newPassword: 'newpassword456' }),
+    })
+    expect(changeRes.status).toBe(200)
+
+    // Old session 2 should now be rejected
+    const meWithOldSession = await app.request('/api/auth/me', {
+      headers: { Cookie: session2Cookie },
+    })
+    expect(meWithOldSession.status).toBe(401)
+
+    // New session cookie from the change-password response should work
+    const newSession = extractCookie(changeRes, 'dc_session')
+    expect(newSession).toBeDefined()
+    const meWithNewSession = await app.request('/api/auth/me', {
+      headers: { Cookie: `dc_session=${newSession}` },
+    })
+    expect(meWithNewSession.status).toBe(200)
+  })
 })
 
 describe('POST /api/auth/logout', () => {
@@ -310,5 +346,15 @@ describe('POST /api/auth/logout', () => {
     // The cookie should be cleared (max-age=0 or expires in the past, or empty value)
     expect(setCookieHeader).toBeTruthy()
     expect(setCookieHeader).toMatch(/dc_session/)
+  })
+
+  it('returns 200 ok with a bogus session cookie', async () => {
+    const res = await app.request('/api/auth/logout', {
+      method: 'POST',
+      headers: { Cookie: 'dc_session=totally-fake-session-id-does-not-exist' },
+    })
+    expect(res.status).toBe(200)
+    const body = await res.json() as { ok: boolean }
+    expect(body.ok).toBe(true)
   })
 })
