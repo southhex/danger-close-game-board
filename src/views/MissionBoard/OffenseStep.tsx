@@ -32,7 +32,6 @@ export default function OffenseStep({ engagement, troopers, sector, addRoll }: P
   const [chosenOutcome, setChosenOutcome] = useState<'hold_position' | 'success_at_cost' | null>(null)
   const [sacTrooperId, setSacTrooperId] = useState<string>('')
   const [htResults, setHtResults] = useState<Record<string, { hits: number; atCost: boolean }>>({})
-  const [committedForces, setCommittedForces] = useState<string[]>([])
   const [allRolls, setAllRolls] = useState<number[]>([])
 
   const currentMomentum = mission?.momentum ?? 0
@@ -96,7 +95,6 @@ export default function OffenseStep({ engagement, troopers, sector, addRoll }: P
 
   function handleCommitForce(forceId: string) {
     commitAttachedForce(forceId)
-    setCommittedForces(prev => [...prev, forceId])
   }
 
   function handleApply() {

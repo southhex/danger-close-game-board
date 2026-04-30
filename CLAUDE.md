@@ -156,7 +156,7 @@ Weapon modifiers: Carbine ±1 by space when Engaged; Marksman Rifle ±1 by cover
 - Monospace font everywhere. Labels uppercase with letter-spacing.
 - Minimal size hierarchy — use weight and colour for emphasis, not font size.
 - Mobile-first. Mission board trooper cards scroll horizontally with snap, never wrap.
-- State changes are immediate (no submit patterns) except: Trooper Editor saves, and destructive confirmations (mission reset, delete trooper, import overwrite, apply advance result).
+- State changes are immediate (no submit patterns) except: Trooper Editor saves, and destructive confirmations (mission reset, delete trooper, import overwrite, apply advance result, sector switch mid-engagement).
 - No gradients, no decorative imagery.
 - `ConfirmDialog` tones: `tone="danger"` (red) for DELETE/RESET/OVERWRITE; `tone="default"` (amber) for apply/confirm actions.
 
@@ -178,6 +178,10 @@ const troopers = allTroopers.filter(t => t.active)
 **Never use `useStore.getState()` inside React components.** Use selector hooks: `useStore(s => s.action)`.
 
 **Trooper Editor save:** Only reset `special_weapon_uses` / `special_gear_uses` when the gear selection actually changed — preserves in-mission uses on unrelated edits.
+
+**Sector chip interaction:** chip body activates the sector via `setActiveSector` (which resets `phase` to `'advance'`, clears `engagement`, zeroes `advance_rolls`, and demotes the previously-active sector to `'pending'`). The small `✎` button on each chip opens the editor. SectorChainStrip prompts a confirmation dialog before switching when an engagement or advance roll is in progress.
+
+**`resetMission` resets troopers too.** It calls `resetTrooperForMission` on all active troopers (status/grit/ammo/positions/uses). Don't add separate trooper-state-reset calls in the Settings UI.
 
 ---
 

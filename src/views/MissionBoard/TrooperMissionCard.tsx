@@ -1,7 +1,7 @@
 import { memo, useMemo } from 'react'
 import { Dropdown, PipTracker } from '../../components'
 import { STATUS_COLOR } from '../../components/StatusBadge'
-import { effectiveMobility, canSetDefpos, canSetOffpos } from '../../utils/gameRules'
+import { canSetDefpos, canSetOffpos } from '../../utils/gameRules'
 import { useStore } from '../../store'
 import type { Trooper, TrooperStatus, OffensivePosition, DefensivePosition } from '../../types'
 
@@ -35,7 +35,6 @@ const TrooperMissionCard = memo(function TrooperMissionCard({
 }: Props) {
   const updateTrooper = useStore(s => s.updateTrooper)
 
-  const effMob = effectiveMobility(trooper)
   const color = STATUS_COLOR[trooper.status]
   const dim = trooper.status === 'dead' ? 'opacity-50' : ''
 
