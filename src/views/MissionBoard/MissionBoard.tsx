@@ -6,6 +6,7 @@ import AdvanceRollPanel from './AdvanceRollPanel'
 import SectorChainStrip from './SectorChainStrip'
 import EngagementPanel from './EngagementPanel'
 import CatchBreathPanel from './CatchBreathPanel'
+import MissionCompletePanel from './MissionCompletePanel'
 
 export default function MissionBoard() {
   const mission = useStore(s => s.mission)
@@ -29,7 +30,8 @@ export default function MissionBoard() {
           {mission.phase === 'advance' && <AdvanceRollPanel />}
           {mission.phase === 'engagement' && <EngagementPanel />}
           {mission.phase === 'catch_breath' && <CatchBreathPanel />}
-          <SectorMomentumPanel />
+          {mission.phase === 'mission_complete' && <MissionCompletePanel />}
+          {mission.phase !== 'mission_complete' && <SectorMomentumPanel />}
           <MissionNotes />
         </div>
       </div>

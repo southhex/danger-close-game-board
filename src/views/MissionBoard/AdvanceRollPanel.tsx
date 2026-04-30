@@ -21,6 +21,8 @@ export default function AdvanceRollPanel() {
   const setMission = useStore(s => s.setMission)
   const applyAdvanceResult = useStore(s => s.applyAdvanceResult)
   const beginEngagement = useStore(s => s.beginEngagement)
+  const overwhelmActiveSector = useStore(s => s.overwhelmActiveSector)
+  const bypassActiveSector = useStore(s => s.bypassActiveSector)
   const addRoll = useStore(s => s.addRoll)
   const clearTransition = useStore(s => s.clearTransition)
 
@@ -75,7 +77,9 @@ export default function AdvanceRollPanel() {
   const proceedToMobility = () => {
     if (phase.kind !== 'rolled') return
     if (phase.result === 'overwhelm') {
-      applyAdvanceResult({ result: 'overwhelm' })
+      // OVERWHELM: no engagement, sector cleared, advance to next pending
+      // (or land in catch_breath if none — user can ADD or END MISSION).
+      overwhelmActiveSector()
       setPhase({ kind: 'setup' })
       setAssaultAmmo(0)
       return
@@ -88,8 +92,15 @@ export default function AdvanceRollPanel() {
     })
   }
 
-  const onApplyMobility = (mapping: Record<string, OffensivePosition>) => {
+  const onApplyMobility = (mapping: Record<string, OffensivePosition>, allPass: boolean) => {
     if (phase.kind !== 'mobility') return
+    if (allPass) {
+      // Sector bypassed — same outcome as overwhelm: clear and advance.
+      bypassActiveSector()
+      setPhase({ kind: 'setup' })
+      setAssaultAmmo(0)
+      return
+    }
     applyAdvanceResult({ result: phase.result, trooperOffpos: mapping })
     beginEngagement()
     setPhase({ kind: 'setup' })
@@ -162,7 +173,7 @@ export default function AdvanceRollPanel() {
           <div className="flex gap-2">
             <button onClick={() => setPhase({ kind: 'setup' })} className="text-[10px] text-muted border border-border px-3 py-1">REDO</button>
             <button onClick={proceedToMobility} className="text-[10px] text-ok border border-ok px-3 py-1">
-              {phase.result === 'overwhelm' ? 'APPLY — NO ENGAGEMENT' : 'CONTINUE TO MOBILITY CHECKS'}
+              {phase.result === 'overwhelm' ? 'CLEAR SECTOR & ADVANCE ▸' : 'CONTINUE TO MOBILITY CHECKS'}
             </button>
           </div>
         </div>

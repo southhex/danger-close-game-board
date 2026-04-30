@@ -10,7 +10,7 @@ interface Props {
   troopers: Trooper[]
   result: AdvanceResult
   stealthWasActive: boolean
-  onApply: (trooperOffpos: Record<string, OffensivePosition>) => void
+  onApply: (trooperOffpos: Record<string, OffensivePosition>, allPass: boolean) => void
   onCancel: () => void
 }
 
@@ -38,7 +38,7 @@ export default function MobilityCheckPhase({ troopers, result, stealthWasActive,
       if (c.roll === null) continue
       mapping[t.id] = offposFromCheck(result, !!c.pass)
     }
-    onApply(mapping)
+    onApply(mapping, allPass)
   }
 
   return (
@@ -82,14 +82,16 @@ export default function MobilityCheckPhase({ troopers, result, stealthWasActive,
         <button onClick={onCancel} className="text-[10px] text-muted border border-border px-3 py-1">CANCEL</button>
         <button disabled={!allRolled} onClick={() => setConfirmOpen(true)}
           className="text-[10px] text-ok border border-ok px-3 py-1 disabled:opacity-40">
-          APPLY RESULT
+          {allPass ? 'BYPASS SECTOR ▸' : 'APPLY RESULT'}
         </button>
       </div>
       <ConfirmDialog
         open={confirmOpen}
-        title="APPLY RESULT"
-        message={`Apply ${result.toUpperCase()} result to all troopers? This cannot be undone.`}
-        confirmLabel="APPLY"
+        title={allPass ? 'BYPASS SECTOR' : 'APPLY RESULT'}
+        message={allPass
+          ? 'All troopers passed — bypass this sector without engaging? It will be marked cleared.'
+          : `Apply ${result.toUpperCase()} result to all troopers? This cannot be undone.`}
+        confirmLabel={allPass ? 'BYPASS' : 'APPLY'}
         tone="default"
         onConfirm={() => { setConfirmOpen(false); apply() }}
         onCancel={() => setConfirmOpen(false)}
