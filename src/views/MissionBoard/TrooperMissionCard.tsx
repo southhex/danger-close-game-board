@@ -1,6 +1,7 @@
 import { memo, useMemo } from 'react'
 import { Dropdown, PipTracker } from '../../components'
 import { STATUS_COLOR } from '../../components/StatusBadge'
+import { TOKEN } from '../../utils/tokens'
 import { canSetDefpos, canSetOffpos } from '../../utils/gameRules'
 import { useStore } from '../../store'
 import type { Trooper, TrooperStatus, OffensivePosition, DefensivePosition } from '../../types'
@@ -62,11 +63,9 @@ const TrooperMissionCard = memo(function TrooperMissionCard({
             {/* Suppression indicator dot */}
             <div
               title={trooper.suppressed ? 'SUPPRESSED' : ''}
-              style={{
-                width: 7, height: 7, borderRadius: '50%',
-                background: trooper.suppressed ? '#c8a030' : 'transparent',
-                border: `1px solid ${trooper.suppressed ? '#c8a030' : '#3a4a3a'}`,
-              }}
+              className={`w-[7px] h-[7px] rounded-pill border ${
+                trooper.suppressed ? 'bg-warn border-warn' : 'border-border'
+              }`}
             />
             {/* Expand button */}
             <button
@@ -104,10 +103,10 @@ const TrooperMissionCard = memo(function TrooperMissionCard({
         {/* Grit + Ammo */}
         <div className="flex gap-3">
           <PipTracker label="GRIT" value={trooper.grit} max={trooper.grit_max}
-            color="oklch(0.76 0.13 155)"
+            color={TOKEN.ok}
             onChange={v => updateTrooper(trooper.id, { grit: v })} />
           <PipTracker label="AMMO" value={trooper.ammo} max={trooper.ammo_max}
-            color="oklch(0.82 0.13 90)"
+            color={TOKEN.warn}
             onChange={v => updateTrooper(trooper.id, { ammo: v })} />
         </div>
       </div>

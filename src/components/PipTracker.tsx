@@ -1,3 +1,5 @@
+import { TOKEN } from '../utils/tokens'
+
 interface Props {
   value: number
   max: number
@@ -6,7 +8,7 @@ interface Props {
   color?: string
 }
 
-export default function PipTracker({ value, max, onChange, label, color = 'oklch(0.76 0.13 155)' }: Props) {
+export default function PipTracker({ value, max, onChange, label, color = TOKEN.ok }: Props) {
   const toggle = (i: number, filled: boolean) => {
     const next = filled ? i : i + 1
     onChange(Math.max(0, Math.min(max, next)))
@@ -23,7 +25,7 @@ export default function PipTracker({ value, max, onChange, label, color = 'oklch
               style={{
                 width: 18, height: 6,
                 borderRadius: 3,
-                background: filled ? color : 'oklch(0.26 0.005 130)',
+                background: filled ? color : TOKEN.border,
                 border: 'none',
                 padding: 0,
                 cursor: 'pointer',

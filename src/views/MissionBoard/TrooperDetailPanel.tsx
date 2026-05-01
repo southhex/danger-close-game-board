@@ -7,6 +7,7 @@ import { rollDie } from '../../utils/dice'
 import { newId } from '../../utils/id'
 import { useStore } from '../../store'
 import { useMediaQuery } from '../../hooks/useMediaQuery'
+import { TOKEN } from '../../utils/tokens'
 import type { Trooper, GearItem } from '../../types'
 
 interface Props {
@@ -90,7 +91,7 @@ const TrooperDetailPanel = memo(function TrooperDetailPanel({ trooper, onClose }
                     value={trooper.special_weapon_uses < 0 ? 0 : trooper.special_weapon_uses}
                     max={sw.max_uses}
                     onChange={v => updateTrooper(trooper.id, { special_weapon_uses: clampUses(v, sw.max_uses) })}
-                    color="#c8a030" />
+                    color={TOKEN.warn} />
                 )}
               </div>
             </div>
@@ -103,7 +104,7 @@ const TrooperDetailPanel = memo(function TrooperDetailPanel({ trooper, onClose }
                   value={trooper.special_gear_uses < 0 ? 0 : trooper.special_gear_uses}
                   max={sg.max_uses}
                   onChange={v => updateTrooper(trooper.id, { special_gear_uses: clampUses(v, sg.max_uses) })}
-                  color="#c8a030" />
+                  color={TOKEN.warn} />
               )}
             </div>
           )}

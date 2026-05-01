@@ -14,7 +14,7 @@ export default function Dropdown({ value, options, onChange, label, className }:
       <select
         value={value}
         onChange={e => onChange(e.target.value)}
-        className="w-full bg-bg border border-border text-ink font-mono text-xs px-2 py-1"
+        className="w-full bg-bg border border-border rounded-md text-ink text-xs px-2 py-1 focus:outline-none focus:border-accent"
       >
         {options.map(o => (
           <option key={o.value} value={o.value} disabled={o.disabled}>{o.label}</option>

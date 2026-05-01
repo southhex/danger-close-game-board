@@ -23,7 +23,7 @@ export default function Modal({ open, onClose, children, title, width = 'min(90v
   if (!open) return null
   return (
     <div className="fixed inset-0 z-40 bg-black/60 flex items-center justify-center p-4" onClick={onClose}>
-      <div className="bg-surface border border-border flex flex-col max-h-[90vh]"
+      <div className="bg-surface border border-border rounded-xl flex flex-col max-h-[90vh] overflow-hidden"
         style={{ width }}
         onClick={e => e.stopPropagation()}>
         {title && (

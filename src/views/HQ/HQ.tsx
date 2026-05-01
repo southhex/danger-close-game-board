@@ -51,7 +51,7 @@ export default function HQ() {
   if (!campaign) {
     return (
       <div className="p-6 flex items-center justify-center">
-        <div className="bg-surface border border-border p-6 text-center">
+        <div className="bg-surface border border-border rounded-xl p-6 text-center">
           <div className="text-[10px] uppercase tracking-widest text-muted mb-2">HQ</div>
           <div className="text-[12px] text-muted">Select a campaign to continue.</div>
         </div>
@@ -62,7 +62,7 @@ export default function HQ() {
   return (
     <div className="p-4 flex flex-col gap-4 max-w-xl">
       {/* Campaign header */}
-      <section className="bg-surface border border-border p-4 flex flex-col gap-3">
+      <section className="bg-surface border border-border rounded-xl p-4 flex flex-col gap-3">
         <div className="text-[10px] uppercase tracking-widest text-muted">Campaign</div>
 
         <div className="flex flex-col gap-1">
@@ -73,9 +73,9 @@ export default function HQ() {
             defaultValue={campaign.name}
             onBlur={handleNameBlur}
             onKeyDown={e => { if (e.key === 'Enter') e.currentTarget.blur() }}
-            className="bg-bg border border-border text-ink text-[13px] px-2.5 py-1.5 font-mono w-full focus:outline-none focus:border-accent"
+            className="bg-bg border border-border rounded-md text-ink text-[13px] px-2.5 py-1.5 w-full focus:outline-none focus:border-accent"
           />
-          {nameError && <div className="text-[11px] text-red-400">{nameError}</div>}
+          {nameError && <div className="text-[11px] text-bad">{nameError}</div>}
         </div>
 
         <div className="flex flex-col gap-1">
@@ -85,9 +85,9 @@ export default function HQ() {
             defaultValue={campaign.description}
             onBlur={handleDescBlur}
             rows={3}
-            className="bg-bg border border-border text-ink text-[12px] px-2.5 py-1.5 font-mono w-full resize-none focus:outline-none focus:border-accent"
+            className="bg-bg border border-border rounded-md text-ink text-[12px] px-2.5 py-1.5 w-full resize-none focus:outline-none focus:border-accent"
           />
-          {descError && <div className="text-[11px] text-red-400">{descError}</div>}
+          {descError && <div className="text-[11px] text-bad">{descError}</div>}
         </div>
       </section>
 
@@ -98,9 +98,9 @@ export default function HQ() {
           { label: 'ACTIVE',   value: activeCount },
           { label: 'LOST',     value: lostCount },
         ].map(({ label, value }) => (
-          <div key={label} className="flex-1 bg-surface border border-border p-3 flex flex-col gap-1 items-center">
+          <div key={label} className="flex-1 bg-surface border border-border rounded-xl p-3 flex flex-col gap-1 items-center">
             <div className="text-[10px] uppercase tracking-widest text-muted">{label}</div>
-            <div className="text-[22px] font-bold text-ink leading-none">{value}</div>
+            <div className="text-[22px] font-bold text-ink font-mono leading-none">{value}</div>
           </div>
         ))}
       </section>
@@ -109,14 +109,14 @@ export default function HQ() {
       {mission === null ? (
         <button
           onClick={prepareMission}
-          className="bg-surface border border-border text-accent text-[12px] uppercase tracking-widest px-4 py-2.5 hover:border-accent transition-colors text-left"
+          className="bg-surface border border-border rounded-xl text-accent text-[12px] uppercase tracking-widest px-4 py-2.5 hover:border-accent transition-colors text-left"
         >
           + Start Quick Mission
         </button>
       ) : (
-        <div className="bg-surface border border-border p-3 flex items-center justify-between">
+        <div className="bg-surface border border-border rounded-xl p-3 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <span className="text-[9px] font-bold tracking-wide bg-accent text-bg px-1.5 py-0.5">LIVE</span>
+            <span className="text-[9px] font-bold tracking-wide bg-accent text-bg rounded-pill px-2 py-0.5">LIVE</span>
             <span className="text-[12px] text-ink">{mission.name}</span>
           </div>
           <button

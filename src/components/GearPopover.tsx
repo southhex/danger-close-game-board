@@ -51,7 +51,7 @@ export default function GearPopover({ gear, children }: Props) {
             zIndex: 9999,
             width: '16rem',
           }}
-          className="bg-surface border border-border p-2 shadow-lg"
+          className="bg-surface border border-border rounded-md p-2 shadow-lg"
         >
           <div className="lbl mb-1">{gear.name}</div>
           <div className="text-[10px] text-muted leading-snug whitespace-pre-line">{gear.properties}</div>

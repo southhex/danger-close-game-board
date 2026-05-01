@@ -21,6 +21,10 @@ export default {
         warn:     'oklch(0.82  0.13  90)',
         neutral:  'oklch(0.62 0.006 100)',
         wound:    'oklch(0.72 0.15 45)',
+        dockfade: 'oklch(0.13  0.005 130)',
+      },
+      boxShadow: {
+        dock: '0 -4px 12px rgba(0,0,0,0.5)',
       },
       fontFamily: {
         sans: ['"Inter"', 'system-ui', 'sans-serif'],

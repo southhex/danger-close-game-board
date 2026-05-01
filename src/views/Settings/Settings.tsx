@@ -42,7 +42,7 @@ export default function Settings() {
   return (
     <div className="p-4 flex flex-col gap-4">
       {/* Account */}
-      <section className="bg-surface border border-border p-3 flex flex-col gap-3">
+      <section className="bg-surface border border-border rounded-xl p-3 flex flex-col gap-3">
         <div className="lbl text-[10px]">ACCOUNT</div>
 
         {user && (
@@ -62,7 +62,7 @@ export default function Settings() {
               onChange={e => setCurrentPwd(e.target.value)}
               autoComplete="current-password"
               required
-              className="bg-bg border border-border text-ink font-mono text-[12px] px-2 py-1.5 outline-none focus:border-accent"
+              className="bg-bg border border-border rounded-md text-ink text-[12px] px-2 py-1.5 outline-none focus:border-accent"
             />
           </div>
 
@@ -74,7 +74,7 @@ export default function Settings() {
               onChange={e => setNewPwd(e.target.value)}
               autoComplete="new-password"
               required
-              className="bg-bg border border-border text-ink font-mono text-[12px] px-2 py-1.5 outline-none focus:border-accent"
+              className="bg-bg border border-border rounded-md text-ink text-[12px] px-2 py-1.5 outline-none focus:border-accent"
             />
           </div>
 
@@ -86,21 +86,21 @@ export default function Settings() {
               onChange={e => setConfirmPwd(e.target.value)}
               autoComplete="new-password"
               required
-              className="bg-bg border border-border text-ink font-mono text-[12px] px-2 py-1.5 outline-none focus:border-accent"
+              className="bg-bg border border-border rounded-md text-ink text-[12px] px-2 py-1.5 outline-none focus:border-accent"
             />
           </div>
 
           {pwdError && (
-            <div className="text-[11px] text-bad border border-bad px-2 py-1.5">{pwdError}</div>
+            <div className="text-[11px] text-bad border border-bad rounded-md px-2 py-1.5">{pwdError}</div>
           )}
           {pwdSuccess && (
-            <div className="text-[11px] text-ok border border-ok px-2 py-1.5">Password changed.</div>
+            <div className="text-[11px] text-ok border border-ok rounded-md px-2 py-1.5">Password changed.</div>
           )}
 
           <button
             type="submit"
             disabled={pwdLoading}
-            className="text-[11px] text-accent border border-accent px-3 py-1 self-start hover:opacity-80 disabled:opacity-50"
+            className="text-[11px] text-accent border border-accent rounded-md px-3 py-1 self-start hover:opacity-80 disabled:opacity-50"
           >
             {pwdLoading ? 'Updating…' : 'Update password'}
           </button>
@@ -109,7 +109,7 @@ export default function Settings() {
         <div className="border-t border-border pt-2">
           <button
             onClick={() => logout()}
-            className="text-[11px] text-muted border border-border px-3 py-1 hover:text-ink hover:border-ink"
+            className="text-[11px] text-muted border border-border rounded-md px-3 py-1 hover:text-ink hover:border-ink"
           >
             Sign out
           </button>
@@ -118,12 +118,12 @@ export default function Settings() {
 
       {/* Mission */}
       {mission && (
-        <section className="bg-surface border border-border p-3 flex flex-col gap-2">
+        <section className="bg-surface border border-border rounded-xl p-3 flex flex-col gap-2">
           <div className="lbl text-[10px]">MISSION</div>
           <div>
             <button
               onClick={() => setConfirmReset(true)}
-              className="text-[11px] text-bad border border-bad px-3 py-1"
+              className="text-[11px] text-bad border border-bad rounded-md px-3 py-1"
             >
               RESET MISSION
             </button>

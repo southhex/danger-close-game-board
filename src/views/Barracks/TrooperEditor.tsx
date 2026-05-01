@@ -95,15 +95,15 @@ export default function TrooperEditor({ open, trooperId, onClose }: Props) {
         <div className="grid grid-cols-2 gap-3">
           <label className="col-span-1">
             <div className="lbl text-[10px] mb-1">NICKNAME</div>
-            <input className="w-full bg-bg border border-border text-ink text-xs px-2 py-1 font-mono" value={form.name} onChange={e => set('name', e.target.value)} />
+            <input className="w-full bg-bg border border-border rounded-md text-ink text-xs px-2 py-1 focus:outline-none focus:border-accent" value={form.name} onChange={e => set('name', e.target.value)} />
           </label>
           <label className="col-span-1">
             <div className="lbl text-[10px] mb-1">CALLSIGN</div>
-            <input className="w-full bg-bg border border-border text-ink text-xs px-2 py-1 font-mono" value={form.callsign} onChange={e => set('callsign', e.target.value)} />
+            <input className="w-full bg-bg border border-border rounded-md text-ink text-xs px-2 py-1 focus:outline-none focus:border-accent" value={form.callsign} onChange={e => set('callsign', e.target.value)} />
           </label>
           <label className="col-span-2">
             <div className="lbl text-[10px] mb-1">FULL NAME</div>
-            <input className="w-full bg-bg border border-border text-ink text-xs px-2 py-1 font-mono" value={form.fullname} onChange={e => set('fullname', e.target.value)} />
+            <input className="w-full bg-bg border border-border rounded-md text-ink text-xs px-2 py-1 focus:outline-none focus:border-accent" value={form.fullname} onChange={e => set('fullname', e.target.value)} />
           </label>
 
           <Dropdown className="col-span-2" label="TAG" value={form.tag}
@@ -120,7 +120,7 @@ export default function TrooperEditor({ open, trooperId, onClose }: Props) {
           </label>
           <label className="col-span-1">
             <div className="lbl text-[10px] mb-1">PERK POINTS</div>
-            <input type="number" className="w-full bg-bg border border-border text-ink text-xs px-2 py-1 font-mono" value={form.perkpoints} onChange={e => set('perkpoints', Number(e.target.value))} />
+            <input type="number" className="w-full bg-bg border border-border rounded-md text-ink text-xs px-2 py-1 font-mono focus:outline-none focus:border-accent" value={form.perkpoints} onChange={e => set('perkpoints', Number(e.target.value))} />
           </label>
 
           <div className="col-span-2 border-t border-border my-2" />
@@ -139,7 +139,7 @@ export default function TrooperEditor({ open, trooperId, onClose }: Props) {
 
           <div className="col-span-2 flex items-center justify-between border-t border-border pt-2 mt-1">
             <div className="lbl text-[10px]">COMPUTED MOBILITY</div>
-            <div className="text-ok text-sm">{computedMob}</div>
+            <div className="text-ok text-sm font-mono">{computedMob}</div>
           </div>
 
           <div className="col-span-1">
@@ -163,11 +163,11 @@ export default function TrooperEditor({ open, trooperId, onClose }: Props) {
               <div className="text-[10px] text-muted italic">No perks.</div>
             )}
             {form.perks.map((perk, i) => (
-              <div key={i} className="flex flex-col gap-1 mb-2 border border-border p-2">
+              <div key={i} className="flex flex-col gap-1 mb-2 border border-border rounded-md p-2">
                 <div className="flex items-center gap-1">
                   <input
                     placeholder="Perk name"
-                    className="flex-1 bg-bg border border-border text-ink text-xs px-2 py-0.5 font-mono"
+                    className="flex-1 bg-bg border border-border rounded-md text-ink text-xs px-2 py-0.5 focus:outline-none focus:border-accent"
                     value={perk.name}
                     onChange={e => {
                       const updated = form.perks.map((p, j) => j === i ? { ...p, name: e.target.value } : p)
@@ -181,7 +181,7 @@ export default function TrooperEditor({ open, trooperId, onClose }: Props) {
                 <textarea
                   rows={2}
                   placeholder="Description"
-                  className="w-full bg-bg border border-border text-ink text-xs px-2 py-1 font-mono"
+                  className="w-full bg-bg border border-border rounded-md text-ink text-xs px-2 py-1 focus:outline-none focus:border-accent"
                   value={perk.description}
                   onChange={e => {
                     const updated = form.perks.map((p, j) => j === i ? { ...p, description: e.target.value } : p)
@@ -193,7 +193,7 @@ export default function TrooperEditor({ open, trooperId, onClose }: Props) {
 
           <label className="col-span-2">
             <div className="lbl text-[10px] mb-1">NOTES</div>
-            <textarea rows={3} className="w-full bg-bg border border-border text-ink text-xs px-2 py-1 font-mono" value={form.notes} onChange={e => set('notes', e.target.value)} />
+            <textarea rows={3} className="w-full bg-bg border border-border rounded-md text-ink text-xs px-2 py-1 focus:outline-none focus:border-accent" value={form.notes} onChange={e => set('notes', e.target.value)} />
           </label>
         </div>
 

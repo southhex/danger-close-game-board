@@ -1,11 +1,13 @@
 import type { TrooperStatus } from '../types'
 
+import { TOKEN } from '../utils/tokens'
+
 const COLOR: Record<TrooperStatus, string> = {
-  ok:         'oklch(0.76 0.13 155)',
-  grazed:     'oklch(0.82 0.13 90)',
-  wounded:    'oklch(0.72 0.15 45)',
-  bleedingout:'oklch(0.65 0.19 25)',
-  dead:       'oklch(0.50 0.02 100)',
+  ok:         TOKEN.ok,
+  grazed:     TOKEN.warn,
+  wounded:    TOKEN.wounded,
+  bleedingout:TOKEN.bad,
+  dead:       TOKEN.dead,
 }
 
 const LABEL: Record<TrooperStatus, string> = {

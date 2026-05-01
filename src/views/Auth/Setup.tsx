@@ -41,7 +41,7 @@ export default function Setup({ onBack }: Props) {
       <div className="w-full max-w-sm">
         {/* Brand */}
         <div className="flex items-center gap-2.5 mb-8">
-          <div className="w-7 h-7 bg-accent text-bg flex items-center justify-center font-bold text-[12px]">
+          <div className="w-7 h-7 bg-accent text-bg rounded-md flex items-center justify-center font-bold text-[12px]">
             DC
           </div>
           <div>
@@ -50,7 +50,7 @@ export default function Setup({ onBack }: Props) {
           </div>
         </div>
 
-        <div className="bg-surface border border-border p-4">
+        <div className="bg-surface border border-border rounded-xl p-4">
           <div className="text-[10px] tracking-widest text-muted uppercase mb-1">First run setup</div>
           <div className="text-[11px] text-muted mb-4">Create your account to get started.</div>
 
@@ -63,7 +63,7 @@ export default function Setup({ onBack }: Props) {
                 onChange={e => setUsername(e.target.value)}
                 autoComplete="username"
                 required
-                className="bg-bg border border-border text-ink font-mono text-[13px] px-2.5 py-2 outline-none focus:border-accent"
+                className="bg-bg border border-border rounded-md text-ink text-[13px] px-2.5 py-2 outline-none focus:border-accent"
               />
             </div>
 
@@ -75,7 +75,7 @@ export default function Setup({ onBack }: Props) {
                 onChange={e => setPassword(e.target.value)}
                 autoComplete="new-password"
                 required
-                className="bg-bg border border-border text-ink font-mono text-[13px] px-2.5 py-2 outline-none focus:border-accent"
+                className="bg-bg border border-border rounded-md text-ink text-[13px] px-2.5 py-2 outline-none focus:border-accent"
               />
             </div>
 
@@ -87,18 +87,18 @@ export default function Setup({ onBack }: Props) {
                 onChange={e => setConfirmPassword(e.target.value)}
                 autoComplete="new-password"
                 required
-                className="bg-bg border border-border text-ink font-mono text-[13px] px-2.5 py-2 outline-none focus:border-accent"
+                className="bg-bg border border-border rounded-md text-ink text-[13px] px-2.5 py-2 outline-none focus:border-accent"
               />
             </div>
 
             {error && (
-              <div className="text-[11px] text-bad border border-bad px-2.5 py-2">{error}</div>
+              <div className="text-[11px] text-bad border border-bad rounded-md px-2.5 py-2">{error}</div>
             )}
 
             <button
               type="submit"
               disabled={loading}
-              className="bg-accent text-bg font-bold text-[12px] tracking-widest uppercase px-3 py-2 hover:opacity-90 disabled:opacity-50 mt-1"
+              className="bg-accent text-bg rounded-md font-bold text-[12px] tracking-widest uppercase px-3 py-2 hover:opacity-90 disabled:opacity-50 mt-1"
             >
               {loading ? 'Creating account…' : 'Create account'}
             </button>

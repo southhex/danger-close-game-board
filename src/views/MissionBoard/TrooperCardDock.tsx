@@ -21,10 +21,8 @@ export default function TrooperCardDock() {
   return (
     <div className="sticky bottom-0 left-0 right-0 z-20 pointer-events-none">
       {/* Gradient fade behind cards */}
-      <div aria-hidden className="absolute -top-10 left-0 right-0 h-10"
-        style={{ background: 'linear-gradient(to top, #0e1210, transparent)' }} />
-      <div className="relative pointer-events-auto"
-        style={{ boxShadow: '0 -4px 12px rgba(0,0,0,0.5)' }}>
+      <div aria-hidden className="absolute -top-10 left-0 right-0 h-10 bg-gradient-to-t from-dockfade to-transparent" />
+      <div className="relative pointer-events-auto shadow-dock">
         <div className="bg-surface border-t border-border">
           <div className="flex">
             {/* Card strip */}

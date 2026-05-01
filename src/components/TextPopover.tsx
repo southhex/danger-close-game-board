@@ -49,7 +49,7 @@ export default function TextPopover({ title, body, children }: Props) {
             zIndex: 9999,
             width: '14rem',
           }}
-          className="bg-surface border border-border p-2 shadow-lg"
+          className="bg-surface border border-border rounded-md p-2 shadow-lg"
         >
           <div className="lbl mb-1 text-ok">{title.toUpperCase()}</div>
           <div className="text-[10px] text-muted leading-snug">{body}</div>

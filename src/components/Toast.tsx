@@ -29,7 +29,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
       <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 flex flex-col gap-2 pointer-events-none items-center">
         {toasts.map(t => (
           <div key={t.id}
-            className="bg-surface border border-border text-ink text-[11px] p-2 flex items-start gap-2 max-w-[260px] pointer-events-auto">
+            className="bg-surface border border-border rounded-md text-ink text-[11px] p-2 flex items-start gap-2 max-w-[260px] pointer-events-auto shadow-lg">
             <span className="flex-1 leading-snug">{t.message}</span>
             <button onClick={() => dismiss(t.id)} className="text-muted hover:text-ink flex-shrink-0 leading-none">✕</button>
           </div>
