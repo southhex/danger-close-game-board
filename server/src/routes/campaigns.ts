@@ -9,6 +9,24 @@ interface CampaignRow {
   name: string
   description: string
   current_mission: string | null
+  default_airspace: string
+  req_enabled: number
+  req: number
+  current_mission_id: string | null
+  created_at: string
+}
+
+interface SquadRow {
+  id: string
+  data: string
+  created_at: string
+}
+
+interface MissionRow {
+  id: string
+  status: string
+  data: string
+  completed_at: string | null
   created_at: string
 }
 
@@ -69,7 +87,7 @@ export function createCampaignRoutes(db: Database = defaultDb): Hono {
 
     const campaign = db
       .prepare<[string], CampaignRow>(
-        'SELECT id, name, description, current_mission, created_at FROM campaigns WHERE id = ?'
+        'SELECT id, name, description, current_mission, default_airspace, req_enabled, req, current_mission_id, created_at FROM campaigns WHERE id = ?'
       )
       .get(id)
 
@@ -89,42 +107,105 @@ export function createCampaignRoutes(db: Database = defaultDb): Hono {
       )
       .all(id)
 
+    const squadRows = db
+      .prepare<[string], SquadRow>(
+        'SELECT id, data, created_at FROM squads WHERE campaign_id = ? ORDER BY created_at ASC'
+      )
+      .all(id)
+
+    const missionRows = db
+      .prepare<[string], MissionRow>(
+        'SELECT id, status, data, completed_at, created_at FROM missions WHERE campaign_id = ? ORDER BY created_at ASC'
+      )
+      .all(id)
+
+    const missionsLite = missionRows.map((m) => {
+      const data = JSON.parse(m.data) as Record<string, unknown>
+      return {
+        id: m.id,
+        status: m.status,
+        name: typeof data['name'] === 'string' ? (data['name'] as string) : '',
+        completed_at: m.completed_at,
+        created_at: m.created_at,
+      }
+    })
+
+    let currentMission: unknown = null
+    if (campaign.current_mission_id) {
+      const live = missionRows.find((m) => m.id === campaign.current_mission_id)
+      if (live) {
+        currentMission = {
+          id: live.id,
+          status: live.status,
+          data: JSON.parse(live.data) as unknown,
+          completed_at: live.completed_at,
+          created_at: live.created_at,
+        }
+      }
+    }
+
     return c.json({
       campaign: {
         id: campaign.id,
         name: campaign.name,
         description: campaign.description,
+        defaultAirspace: campaign.default_airspace,
+        reqEnabled: campaign.req_enabled === 1,
+        req: campaign.req,
+        currentMissionId: campaign.current_mission_id,
         created_at: campaign.created_at,
       },
       troopers: trooperRows.map((r) => JSON.parse(r.data) as unknown),
       mission: campaign.current_mission ? (JSON.parse(campaign.current_mission) as unknown) : null,
       diceHistory: diceRollRows.map((r) => JSON.parse(r.data) as unknown),
+      squads: squadRows.map((s) => ({
+        id: s.id,
+        data: JSON.parse(s.data) as unknown,
+        created_at: s.created_at,
+      })),
+      missions: missionsLite,
+      currentMission,
     })
   })
 
-  // PATCH /:id — rename/redescribe
+  // PATCH /:id — rename/redescribe; also defaultAirspace, reqEnabled
   router.patch('/:id', requireAuth, async (c) => {
     const id = c.req.param('id')
 
     const campaign = db
-      .prepare<[string], CampaignRow>('SELECT id, name, description, created_at FROM campaigns WHERE id = ?')
+      .prepare<[string], CampaignRow>(
+        'SELECT id, name, description, current_mission, default_airspace, req_enabled, req, current_mission_id, created_at FROM campaigns WHERE id = ?'
+      )
       .get(id)
 
     if (!campaign) {
       return c.json({ error: 'Campaign not found' }, 404)
     }
 
-    let body: { name?: unknown; description?: unknown }
+    let body: {
+      name?: unknown
+      description?: unknown
+      defaultAirspace?: unknown
+      reqEnabled?: unknown
+    }
     try {
-      body = await c.req.json<{ name?: unknown; description?: unknown }>()
+      body = await c.req.json<typeof body>()
     } catch {
       return c.json({ error: 'Invalid JSON body' }, 400)
     }
 
-    const { name, description } = body
+    const { name, description, defaultAirspace, reqEnabled } = body
 
-    if (name === undefined && description === undefined) {
-      return c.json({ error: 'At least one of name or description is required' }, 400)
+    if (
+      name === undefined &&
+      description === undefined &&
+      defaultAirspace === undefined &&
+      reqEnabled === undefined
+    ) {
+      return c.json(
+        { error: 'At least one of name, description, defaultAirspace, reqEnabled is required' },
+        400
+      )
     }
 
     if (name !== undefined) {
@@ -133,16 +214,36 @@ export function createCampaignRoutes(db: Database = defaultDb): Hono {
       }
     }
 
+    if (defaultAirspace !== undefined) {
+      if (
+        typeof defaultAirspace !== 'string' ||
+        !['contested', 'friendly', 'denied'].includes(defaultAirspace)
+      ) {
+        return c.json(
+          { error: "defaultAirspace must be one of 'contested' | 'friendly' | 'denied'" },
+          400
+        )
+      }
+    }
+
+    if (reqEnabled !== undefined && typeof reqEnabled !== 'boolean') {
+      return c.json({ error: 'reqEnabled must be a boolean' }, 400)
+    }
+
     const newName = name !== undefined ? (name as string).trim() : campaign.name
     const newDesc = description !== undefined ? String(description) : campaign.description
+    const newAirspace =
+      defaultAirspace !== undefined ? (defaultAirspace as string) : campaign.default_airspace
+    const newReqEnabled =
+      reqEnabled !== undefined ? ((reqEnabled as boolean) ? 1 : 0) : campaign.req_enabled
 
-    db.prepare<[string, string, string]>(
-      'UPDATE campaigns SET name = ?, description = ? WHERE id = ?'
-    ).run(newName, newDesc, id)
+    db.prepare<[string, string, string, number, string]>(
+      'UPDATE campaigns SET name = ?, description = ?, default_airspace = ?, req_enabled = ? WHERE id = ?'
+    ).run(newName, newDesc, newAirspace, newReqEnabled, id)
 
     const updated = db
       .prepare<[string], CampaignRow>(
-        'SELECT id, name, description, created_at FROM campaigns WHERE id = ?'
+        'SELECT id, name, description, current_mission, default_airspace, req_enabled, req, current_mission_id, created_at FROM campaigns WHERE id = ?'
       )
       .get(id)!
 
@@ -150,6 +251,9 @@ export function createCampaignRoutes(db: Database = defaultDb): Hono {
       id: updated.id,
       name: updated.name,
       description: updated.description,
+      defaultAirspace: updated.default_airspace,
+      reqEnabled: updated.req_enabled === 1,
+      req: updated.req,
       created_at: updated.created_at,
     })
   })

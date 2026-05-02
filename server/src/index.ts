@@ -1,7 +1,15 @@
 import { serve } from '@hono/node-server'
 import { serveStatic } from '@hono/node-server/serve-static'
 import { Hono } from 'hono'
-import { healthRoutes, authRoutes, campaignRoutes, bootstrapRoutes } from './routes/index.js'
+import {
+  healthRoutes,
+  authRoutes,
+  campaignRoutes,
+  bootstrapRoutes,
+  squadRoutes,
+  missionRoutes,
+  reqRoutes,
+} from './routes/index.js'
 
 const isProduction = process.env.NODE_ENV === 'production'
 const port = parseInt(process.env.PORT ?? (isProduction ? '8080' : '3001'))
@@ -13,6 +21,9 @@ app.route('/api', healthRoutes)
 app.route('/api/auth', authRoutes)
 app.route('/api/campaigns', campaignRoutes)
 app.route('/api/bootstrap', bootstrapRoutes)
+app.route('/api', squadRoutes)
+app.route('/api', missionRoutes)
+app.route('/api', reqRoutes)
 
 // In production, serve the Vite-built frontend for all non-/api paths
 if (isProduction) {

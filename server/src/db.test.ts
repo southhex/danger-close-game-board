@@ -37,26 +37,25 @@ describe('database migrations', () => {
     }
   })
 
-  it('records one migration entry after init', () => {
-    expect(getMigrationCount(db)).toBe(1)
+  it('records all migration entries after init', () => {
+    expect(getMigrationCount(db)).toBe(2)
   })
 
-  it('running migrations again is idempotent — count stays at 1, no error', () => {
-    // First pass already happened inside createTestDb
-    expect(getMigrationCount(db)).toBe(1)
+  it('running migrations again is idempotent — count stays the same, no error', () => {
+    const initialCount = getMigrationCount(db)
 
     // Second pass on the same DB instance — should skip already-applied files
     expect(() => runMigrations(db)).not.toThrow()
 
-    // Count must still be exactly 1
-    expect(getMigrationCount(db)).toBe(1)
+    expect(getMigrationCount(db)).toBe(initialCount)
   })
 
-  it('_migrations table has the correct filename recorded', () => {
+  it('_migrations table has the correct filenames recorded in order', () => {
     const rows = db
       .prepare<[], { filename: string }>('SELECT filename FROM _migrations ORDER BY id')
       .all()
     expect(rows[0]?.filename).toBe('001_initial.sql')
+    expect(rows[1]?.filename).toBe('002_stage2.sql')
   })
 
   it('failed migration throws with filename and rolls back', () => {
