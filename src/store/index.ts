@@ -4,6 +4,7 @@ import type {
   EngagementState, TrooperIntent, OffenseResult, DefenseResult, EnemyTactic,
   HardTarget, AttachedForce, TrooperStatus,
   Campaign, User, AuthStatus,
+  Squad, Mission, Airspace,
 } from '../types'
 import { gearByName } from '../data/gear'
 import {
@@ -12,11 +13,19 @@ import {
   pressureIncreases,
 } from '../utils/gameRules'
 import { newId } from '../utils/id'
-import { apiFetch, AuthError } from '../api/client'
+import {
+  apiFetch, AuthError,
+  createSquadApi, patchSquadApi, deleteSquadApi,
+  createMissionApi, patchMissionBlueprintApi, deleteMissionApi,
+  deployMissionApi, completeMissionApi,
+  patchReqApi, spendReqApi, patchCampaignSettingsApi,
+} from '../api/client'
 import { fetchBootstrap, SetupRequiredError } from '../api/bootstrap'
 import { scheduleSync } from '../api/sync'
 
 interface Store extends AppState {
+  squads: Squad[]
+  missions: Mission[]
   currentView: View
   diceTrayOpen: boolean
 
@@ -103,6 +112,27 @@ interface Store extends AppState {
   addHardTarget: (ht: Omit<HardTarget, 'id'>) => void
   addAttachedForce: (af: Omit<AttachedForce, 'id'>) => void
   nullifyTactic: (trooperId: string) => void
+
+  // ── Stage 2 stub mutators (UI not wired yet) ─────────────────────────────
+  createSquad: (input: { name: string; callsign?: string }) => Promise<Squad | null>
+  renameSquad: (id: string, name: string) => Promise<void>
+  setSquadSergeant: (id: string, sergeantId: string | null) => Promise<void>
+  setSquadPerks: (id: string, perks: Squad['perks']) => Promise<void>
+  setSquadNotes: (id: string, notes: string) => Promise<void>
+  deleteSquad: (id: string) => Promise<void>
+  assignTrooperToSquad: (trooperId: string, squadId: string | null) => void
+  setTrooperRecovering: (trooperId: string, recovering: boolean) => void
+
+  createMission: (input: Omit<Mission, 'id' | 'campaignId' | 'status' | 'created_at' | 'completed_at'>) => Promise<Mission | null>
+  updateMissionBlueprint: (mission: Mission) => Promise<void>
+  deleteMission: (id: string) => Promise<void>
+  deployMission: (missionId: string, squadId: string) => Promise<void>
+  completeMission: (missionId: string, body: { fieldReport: string; outcome: 'victory' | 'defeat' | 'aborted'; awardedReq?: number }) => Promise<void>
+
+  setReq: (req: number) => Promise<void>
+  spendReq: (amount: number, trooperId: string, gearChange: { slot: string; name: string | null }) => Promise<void>
+  setCampaignAirspace: (airspace: Airspace) => Promise<void>
+  setCampaignReqEnabled: (enabled: boolean) => Promise<void>
 }
 
 const DEFAULT_MISSION: MissionState = {
@@ -243,6 +273,8 @@ export const useStore = create<Store>()(
     troopers: [],
     mission: null,
     diceHistory: [],
+    squads: [],
+    missions: [],
     currentView: 'barracks',
     diceTrayOpen: false,
 
@@ -294,6 +326,8 @@ export const useStore = create<Store>()(
         troopers: [],
         mission: null,
         diceHistory: [],
+        squads: [],
+        missions: [],
       })
     },
 
@@ -374,13 +408,77 @@ export const useStore = create<Store>()(
         const body = await res.json().catch(() => ({}))
         throw new Error((body as { error?: string }).error ?? 'Load campaign failed')
       }
-      const data = await res.json() as { troopers: Trooper[]; mission: MissionState | null; diceHistory: DiceRoll[] }
-      set({
+      const data = await res.json() as {
+        troopers?: Trooper[]
+        mission?: MissionState | null
+        diceHistory?: DiceRoll[]
+        campaign?: Campaign
+        squads?: Array<{ id: string; data: Record<string, unknown>; created_at?: string }>
+        missions?: Array<{ id: string; status: string; name: string; completed_at: string | null; created_at: string }>
+        currentMission?: { id: string; status: string; data: Record<string, unknown>; completed_at: string | null; created_at: string } | null
+      }
+
+      // Hydrate squads — server returns { id, data: { name, callsign, ... } }
+      const squads: Squad[] = (data.squads ?? []).map(s => ({
+        id: s.id,
+        campaignId: id,
+        name: typeof s.data['name'] === 'string' ? (s.data['name'] as string) : '',
+        callsign: typeof s.data['callsign'] === 'string' ? (s.data['callsign'] as string) : '',
+        sergeantId: typeof s.data['sergeantId'] === 'string' ? (s.data['sergeantId'] as string) : null,
+        perks: Array.isArray(s.data['perks']) ? (s.data['perks'] as Squad['perks']) : [],
+        notes: typeof s.data['notes'] === 'string' ? (s.data['notes'] as string) : '',
+        created_at: s.created_at,
+      }))
+
+      // Hydrate missions (lite) — currentMission gets merged with full data if present
+      const liteList = data.missions ?? []
+      const live = data.currentMission
+      const missions: Mission[] = liteList.map(m => {
+        if (live && m.id === live.id) {
+          const d = live.data
+          return {
+            id: live.id,
+            campaignId: id,
+            status: live.status as Mission['status'],
+            name: typeof d['name'] === 'string' ? (d['name'] as string) : m.name,
+            description: typeof d['description'] === 'string' ? (d['description'] as string) : undefined,
+            difficulty: d['difficulty'] as Mission['difficulty'] | undefined,
+            objectiveCategory: d['objectiveCategory'] as Mission['objectiveCategory'] | undefined,
+            objectiveSubtype: d['objectiveSubtype'] as Mission['objectiveSubtype'] | undefined,
+            airspace: d['airspace'] as Mission['airspace'] | undefined,
+            insertion: d['insertion'] as Mission['insertion'] | undefined,
+            squadId: typeof d['squadId'] === 'string' ? (d['squadId'] as string) : null,
+            state: (d['state'] as MissionState | null | undefined) ?? null,
+            fieldReport: typeof d['fieldReport'] === 'string' ? (d['fieldReport'] as string) : '',
+            outcome: d['outcome'] as Mission['outcome'] | undefined,
+            awardedReq: typeof d['awardedReq'] === 'number' ? (d['awardedReq'] as number) : undefined,
+            completed_at: live.completed_at,
+            created_at: live.created_at,
+          }
+        }
+        return {
+          id: m.id,
+          campaignId: id,
+          status: m.status as Mission['status'],
+          name: m.name,
+          completed_at: m.completed_at,
+          created_at: m.created_at,
+        }
+      })
+
+      // Sync top-level Campaign in `campaigns` array with extended fields
+      const updatedCampaign = data.campaign
+      set(s => ({
         currentCampaignId: id,
         troopers: data.troopers ?? [],
         mission: data.mission ?? null,
         diceHistory: data.diceHistory ?? [],
-      })
+        squads,
+        missions,
+        campaigns: updatedCampaign
+          ? s.campaigns.map(c => c.id === id ? { ...c, ...updatedCampaign } : c)
+          : s.campaigns,
+      }))
     },
 
     setSyncStatus: (status) => set({ syncStatus: status }),
@@ -989,6 +1087,157 @@ export const useStore = create<Store>()(
         }
       })
       scheduleSync()
+    },
+
+    // ── Stage 2 stub mutators ───────────────────────────────────────────────────
+
+    createSquad: async ({ name, callsign = '' }) => {
+      const campaignId = get().currentCampaignId
+      if (!campaignId) return null
+      const created = await createSquadApi(campaignId, {
+        name, callsign, sergeantId: null, perks: [], notes: '',
+      })
+      set(s => ({ squads: [...s.squads, created] }))
+      return created
+    },
+
+    renameSquad: async (id, name) => {
+      const squad = get().squads.find(s => s.id === id)
+      if (!squad) return
+      const updated = { ...squad, name }
+      const result = await patchSquadApi(updated)
+      set(s => ({ squads: s.squads.map(sq => sq.id === id ? result : sq) }))
+    },
+
+    setSquadSergeant: async (id, sergeantId) => {
+      const squad = get().squads.find(s => s.id === id)
+      if (!squad) return
+      const updated = { ...squad, sergeantId }
+      const result = await patchSquadApi(updated)
+      set(s => ({ squads: s.squads.map(sq => sq.id === id ? result : sq) }))
+    },
+
+    setSquadPerks: async (id, perks) => {
+      const squad = get().squads.find(s => s.id === id)
+      if (!squad) return
+      const updated = { ...squad, perks }
+      const result = await patchSquadApi(updated)
+      set(s => ({ squads: s.squads.map(sq => sq.id === id ? result : sq) }))
+    },
+
+    setSquadNotes: async (id, notes) => {
+      const squad = get().squads.find(s => s.id === id)
+      if (!squad) return
+      const updated = { ...squad, notes }
+      const result = await patchSquadApi(updated)
+      set(s => ({ squads: s.squads.map(sq => sq.id === id ? result : sq) }))
+    },
+
+    deleteSquad: async (id) => {
+      await deleteSquadApi(id)
+      set(s => ({
+        squads: s.squads.filter(sq => sq.id !== id),
+        troopers: s.troopers.map(t => t.squadId === id ? { ...t, squadId: null } : t),
+      }))
+    },
+
+    assignTrooperToSquad: (trooperId, squadId) => {
+      set(s => ({
+        troopers: s.troopers.map(t => t.id === trooperId ? { ...t, squadId } : t),
+      }))
+      scheduleSync()
+    },
+
+    setTrooperRecovering: (trooperId, recovering) => {
+      set(s => ({
+        troopers: s.troopers.map(t => t.id === trooperId ? { ...t, recovering } : t),
+      }))
+      scheduleSync()
+    },
+
+    createMission: async (input) => {
+      const campaignId = get().currentCampaignId
+      if (!campaignId) return null
+      const created = await createMissionApi(campaignId, input)
+      set(s => ({ missions: [...s.missions, created] }))
+      return created
+    },
+
+    updateMissionBlueprint: async (mission) => {
+      const updated = await patchMissionBlueprintApi(mission)
+      set(s => ({ missions: s.missions.map(m => m.id === mission.id ? updated : m) }))
+    },
+
+    deleteMission: async (id) => {
+      await deleteMissionApi(id)
+      set(s => ({ missions: s.missions.filter(m => m.id !== id) }))
+    },
+
+    deployMission: async (missionId, squadId) => {
+      const updated = await deployMissionApi(missionId, squadId)
+      const campaignId = get().currentCampaignId
+      set(s => ({
+        missions: s.missions.map(m => m.id === missionId ? updated : m),
+        campaigns: campaignId
+          ? s.campaigns.map(c => c.id === campaignId ? { ...c, currentMissionId: missionId } : c)
+          : s.campaigns,
+      }))
+    },
+
+    completeMission: async (missionId, body) => {
+      const result = await completeMissionApi(missionId, body)
+      const campaignId = get().currentCampaignId
+      set(s => ({
+        missions: s.missions.map(m => m.id === missionId ? result.mission : m),
+        campaigns: campaignId
+          ? s.campaigns.map(c => c.id === campaignId
+              ? { ...c, currentMissionId: null, req: result.campaignReq }
+              : c)
+          : s.campaigns,
+      }))
+    },
+
+    setReq: async (req) => {
+      const campaignId = get().currentCampaignId
+      if (!campaignId) return
+      await patchReqApi(campaignId, req)
+      set(s => ({
+        campaigns: s.campaigns.map(c => c.id === campaignId ? { ...c, req } : c),
+      }))
+    },
+
+    spendReq: async (amount, trooperId, gearChange) => {
+      const campaignId = get().currentCampaignId
+      if (!campaignId) return
+      const campaign = get().campaigns.find(c => c.id === campaignId)
+      if (campaign?.req !== undefined && campaign.req < amount) {
+        throw new Error('Insufficient REQ')
+      }
+      const result = await spendReqApi(campaignId, { amount, trooperId, gearChange })
+      set(s => ({
+        campaigns: s.campaigns.map(c => c.id === campaignId ? { ...c, req: result.req } : c),
+        troopers: s.troopers.map(t =>
+          t.id === trooperId ? { ...t, [gearChange.slot]: gearChange.name ?? '' } as Trooper : t,
+        ),
+      }))
+    },
+
+    setCampaignAirspace: async (airspace) => {
+      const campaignId = get().currentCampaignId
+      if (!campaignId) return
+      await patchCampaignSettingsApi(campaignId, { defaultAirspace: airspace })
+      set(s => ({
+        campaigns: s.campaigns.map(c => c.id === campaignId ? { ...c, defaultAirspace: airspace } : c),
+      }))
+    },
+
+    setCampaignReqEnabled: async (enabled) => {
+      const campaignId = get().currentCampaignId
+      if (!campaignId) return
+      await patchCampaignSettingsApi(campaignId, { reqEnabled: enabled })
+      set(s => ({
+        campaigns: s.campaigns.map(c => c.id === campaignId ? { ...c, reqEnabled: enabled } : c),
+      }))
     },
 
     // ── Legacy actions (kept for test compatibility) ────────────────────────────

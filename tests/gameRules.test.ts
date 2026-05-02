@@ -6,9 +6,9 @@ import {
   stealthShouldClear, infiltrationPicks, woundCount, clampUses, lookupRollTable,
   offenseRollOutcome, momentumDeltaFromOutcome, defRollOutcome,
   injuryDiceForTL, enemyTacticFromRoll, pressureIncreases, hardTargetMaxHp,
-  hardTargetDefHits, calcDefPool, calcFireAtk, weatherLabel,
+  hardTargetDefHits, calcDefPool, calcFireAtk, weatherLabel, isDeployed,
 } from '../src/utils/gameRules'
-import type { Trooper, MissionSector, HardTarget } from '../src/types'
+import type { Trooper, MissionSector, HardTarget, Mission } from '../src/types'
 
 function mkTrooper(p: Partial<Trooper> = {}): Trooper {
   return {
@@ -386,5 +386,52 @@ describe('weatherLabel', () => {
     expect(weatherLabel(-1)).toBe('HARSH')
     expect(weatherLabel(0)).toBe('CLEAR')
     expect(weatherLabel(1)).toBe('FAVORABLE')
+  })
+})
+
+describe('isDeployed', () => {
+  function mkMission(p: Partial<Mission> = {}): Mission {
+    return {
+      id: 'm1',
+      campaignId: 'c1',
+      status: 'live',
+      name: 'Op',
+      squadId: 'sq1',
+      ...p,
+    }
+  }
+
+  it('falls back to t.active when squadId is undefined (legacy trooper)', () => {
+    const t = mkTrooper({ active: true })
+    delete (t as Partial<Trooper>).squadId
+    expect(isDeployed(t, mkMission())).toBe(true)
+    const t2 = mkTrooper({ active: false })
+    delete (t2 as Partial<Trooper>).squadId
+    expect(isDeployed(t2, mkMission())).toBe(false)
+  })
+
+  it('returns true for trooper whose squadId matches a live mission', () => {
+    const t = mkTrooper({ squadId: 'sq1', active: false })
+    expect(isDeployed(t, mkMission({ squadId: 'sq1', status: 'live' }))).toBe(true)
+  })
+
+  it('returns false when squadIds differ', () => {
+    const t = mkTrooper({ squadId: 'sq2', active: true })
+    expect(isDeployed(t, mkMission({ squadId: 'sq1', status: 'live' }))).toBe(false)
+  })
+
+  it('returns false when mission is not live', () => {
+    const t = mkTrooper({ squadId: 'sq1', active: true })
+    expect(isDeployed(t, mkMission({ squadId: 'sq1', status: 'blueprint' }))).toBe(false)
+  })
+
+  it('returns false for null mission', () => {
+    const t = mkTrooper({ squadId: 'sq1', active: true })
+    expect(isDeployed(t, null)).toBe(false)
+  })
+
+  it('returns false when trooper has squadId but mission has no squadId', () => {
+    const t = mkTrooper({ squadId: 'sq1', active: true })
+    expect(isDeployed(t, mkMission({ squadId: null }))).toBe(false)
   })
 })

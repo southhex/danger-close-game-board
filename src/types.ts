@@ -45,6 +45,10 @@ export interface Trooper {
   perks: Perk[]
   notes: string
 
+  // Stage 2 additions — optional during the cutover
+  squadId?: string | null
+  recovering?: boolean
+
   // Mission-state
   grit: number
   grit_max: number        // 1–4, default 1 for new troopers
@@ -59,6 +63,54 @@ export interface Trooper {
   special_gear_uses: number
 }
 
+// ── Stage 2 — Squads & Missions ────────────────────────────────────────────
+
+export interface Squad {
+  id: string
+  campaignId: string
+  name: string
+  callsign: string
+  sergeantId: string | null
+  perks: Perk[]
+  notes: string
+  created_at?: string
+}
+
+export type MissionStatus = 'blueprint' | 'live' | 'completed'
+
+export type MissionObjectiveCategory = 'destroy' | 'recover' | 'recon' | 'rescue' | 'hold' | 'free_roam'
+export type MissionObjectiveSubtype = string
+
+export type MissionDifficulty = 'routine' | 'standard' | 'hard' | 'extreme'
+
+export type Airspace = 'contested' | 'friendly' | 'denied'
+
+export type InsertionType = 'lz' | 'ez' | 'march'
+
+export type SectorRole = 'lz' | 'ez' | 'objective' | 'transit' | 'optional'
+
+export type SectorContentsState = 'undetermined' | 'rolled' | 'preset'
+
+export interface Mission {
+  id: string
+  campaignId: string
+  status: MissionStatus
+  name: string
+  description?: string
+  difficulty?: MissionDifficulty
+  objectiveCategory?: MissionObjectiveCategory
+  objectiveSubtype?: MissionObjectiveSubtype
+  airspace?: Airspace
+  insertion?: InsertionType
+  squadId?: string | null
+  state?: MissionState | null      // engagement runtime data when status='live'
+  fieldReport?: string
+  outcome?: 'victory' | 'defeat' | 'aborted'
+  awardedReq?: number
+  completed_at?: string | null
+  created_at?: string
+}
+
 export interface MissionSector {
   id: string
   name: string
@@ -67,20 +119,36 @@ export interface MissionSector {
   tl: 1 | 2 | 3 | 4
   weather: -2 | -1 | 0 | 1
   status: 'pending' | 'active' | 'cleared'
+  // Stage 2 additions — optional during the cutover
+  description?: string
+  role?: SectorRole
+  contentsState?: SectorContentsState
+  boon?: string | null
+  empty?: boolean
 }
+
+export type MissionPhase =
+  | 'advance'
+  | 'engagement'
+  | 'catch_breath'
+  | 'mission_complete'
+  | 'determine_sector'
 
 export interface MissionState {
   id: string
   name: string
   sectors: MissionSector[]
   activeSectorId: string
-  phase: 'advance' | 'engagement' | 'catch_breath' | 'mission_complete'
+  phase: MissionPhase
   engagement: EngagementState | null
   momentum: number
   advance_rolls: number
   stealth: boolean
   notes: string
   transitionFromSectorId: string | null
+  // Stage 2 additions — optional during cutover
+  nextAdvanceBonus?: number
+  pendingAttachedForces?: AttachedForce[]
 }
 
 export interface EngagementState {
@@ -172,6 +240,9 @@ export interface AppState {
   troopers: Trooper[]
   mission: MissionState | null
   diceHistory: DiceRoll[]
+  // Stage 2 additions — optional during cutover
+  squads?: Squad[]
+  missions?: Mission[]
 }
 
 export interface ApplyAdvancePayload {
@@ -185,6 +256,19 @@ export interface Campaign {
   id: string
   name: string
   description: string
+  created_at: string
+  // Stage 2 additions — optional during cutover
+  defaultAirspace?: Airspace
+  reqEnabled?: boolean
+  req?: number
+  currentMissionId?: string | null
+}
+
+export interface MissionLite {
+  id: string
+  status: MissionStatus
+  name: string
+  completed_at: string | null
   created_at: string
 }
 

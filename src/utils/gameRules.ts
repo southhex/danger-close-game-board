@@ -1,7 +1,26 @@
 import type {
   Trooper, AdvanceResult, OffensivePosition, DefensivePosition, RollTableEntry,
-  MissionSector, HardTarget, OffenseResult, EnemyTactic,
+  MissionSector, HardTarget, OffenseResult, EnemyTactic, Mission, MissionState,
 } from '../types'
+
+/**
+ * Stage 2: A trooper is "deployed" on a live mission iff their squadId matches
+ * the live mission's squadId. During the cutover from `Trooper.active`, troopers
+ * with no squadId fall back to the legacy `active` flag so existing flows keep
+ * working until Stage 3 removes `active` entirely.
+ */
+export function isDeployed(
+  t: Trooper,
+  mission: Mission | MissionState | null | undefined,
+): boolean {
+  if (t.squadId === undefined) return t.active
+  if (!mission) return false
+  const m = mission as Mission & MissionState
+  if ('status' in m && m.status !== 'live') return false
+  const missionSquadId = (m as Mission).squadId
+  if (!missionSquadId) return false
+  return t.squadId === missionSquadId
+}
 
 export function effectiveMobility(t: Trooper): number {
   const penalty = (t.status === 'wounded' || t.status === 'bleedingout') ? 1 : 0
