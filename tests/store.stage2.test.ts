@@ -81,7 +81,7 @@ describe('store stage 2 mutators', () => {
   it('assignTrooperToSquad updates trooper.squadId', () => {
     useStore.setState({
       troopers: [{
-        id: 't1', name: 'A', fullname: '', callsign: '', active: true,
+        id: 't1', name: 'A', fullname: '', callsign: '',
         perkpoints: 0, mobility: 4, armor: '', weapon: '', special_weapon: '', special_gear: '',
         tag: '', perks: [], notes: '', squadId: null, recovering: false,
         grit: 3, grit_max: 3, ammo: 3, ammo_max: 3,
@@ -130,7 +130,7 @@ describe('store stage 2 mutators', () => {
     useStore.setState({
       squads: [{ id: 'sq1', campaignId: 'c1', name: 'Alpha', callsign: '', sergeantId: null, perks: [], notes: '' }],
       troopers: [{
-        id: 't1', name: 'A', fullname: '', callsign: '', active: true,
+        id: 't1', name: 'A', fullname: '', callsign: '',
         perkpoints: 0, mobility: 4, armor: '', weapon: '', special_weapon: '', special_gear: '',
         tag: '', perks: [], notes: '', squadId: 'sq1', recovering: false,
         grit: 3, grit_max: 3, ammo: 3, ammo_max: 3,

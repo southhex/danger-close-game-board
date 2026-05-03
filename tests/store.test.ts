@@ -2,11 +2,15 @@ import { describe, it, expect, beforeEach } from 'vitest'
 import { useStore } from '../src/store'
 import type { Trooper } from '../src/types'
 
+const TEST_SQUAD = 'sq-test'
+
 function makeTrooper(overrides: Partial<Omit<Trooper, 'id'>> & { id: string }) {
   return {
-    name: 'X', fullname: '', callsign: '', active: true, perkpoints: 0,
+    name: 'X', fullname: '', callsign: '', perkpoints: 0,
     mobility: 4, armor: '', weapon: '', special_weapon: '', special_gear: '',
-    tag: '', perks: [], notes: '', grit: 3, grit_max: 3, ammo: 3, ammo_max: 3,
+    tag: '', perks: [], notes: '',
+    squadId: TEST_SQUAD, recovering: false,
+    grit: 3, grit_max: 3, ammo: 3, ammo_max: 3,
     status: 'ok' as const, offpos: 'engaged' as const, defpos: 'incover' as const,
     suppressed: false, def_modifier: 0,
     special_weapon_uses: -1, special_gear_uses: -1,
@@ -30,9 +34,10 @@ describe('store', () => {
 
   it('addTrooper assigns an id', () => {
     useStore.getState().addTrooper({
-      name: 'Warden', fullname: '', callsign: '', active: true, perkpoints: 0,
+      name: 'Warden', fullname: '', callsign: '', perkpoints: 0,
       mobility: 4, armor: 'Medium Armor', weapon: 'Assault Rifle',
       special_weapon: '', special_gear: '', tag: '', perks: [], notes: '',
+      squadId: null, recovering: false,
       grit: 3, grit_max: 3, ammo: 3, ammo_max: 3,
       status: 'ok', offpos: 'engaged', defpos: 'incover',
       suppressed: false, def_modifier: 0, special_weapon_uses: -1, special_gear_uses: -1,
@@ -50,6 +55,13 @@ describe('store', () => {
         grit: 0, ammo: 0, status: 'wounded', offpos: 'limited', defpos: 'flanked',
         suppressed: true, def_modifier: -1, special_weapon_uses: 0,
       })],
+      mission: {
+        id: 'm', name: '',
+        sectors: [{ id: 's1', name: 'Alpha', cover: 1, space: 1, tl: 2, weather: 0, status: 'active' }],
+        activeSectorId: 's1', phase: 'advance', engagement: null,
+        momentum: 0, advance_rolls: 0, stealth: false, notes: '',
+        transitionFromSectorId: null, squadId: TEST_SQUAD,
+      },
     })
     useStore.getState().prepareMission()
     const t = useStore.getState().troopers[0]
@@ -61,7 +73,13 @@ describe('store', () => {
 
   it('applyAdvanceResult sets defpos and momentum', () => {
     useStore.setState({
-      mission: { id: 'm', name: '', sector: { name: '', cover: 1, space: 1, tl: 2, weather: 0 }, momentum: 0, advance_rolls: 0, stealth: true, notes: '' },
+      mission: {
+        id: 'm', name: '',
+        sectors: [{ id: 's1', name: 'Alpha', cover: 1, space: 1, tl: 2, weather: 0, status: 'active' }],
+        activeSectorId: 's1', phase: 'advance', engagement: null,
+        momentum: 0, advance_rolls: 0, stealth: true, notes: '',
+        transitionFromSectorId: null, squadId: TEST_SQUAD,
+      },
       troopers: [makeTrooper({ id: 'a', name: 'A' })],
     })
     useStore.getState().applyAdvanceResult({ result: 'ambushed', trooperOffpos: { a: 'limited' } })
@@ -171,6 +189,7 @@ describe('store', () => {
         ],
         activeSectorId: 's1', phase: 'catch_breath',
         engagement: null, momentum: 1, advance_rolls: 4, stealth: false, notes: '',
+        transitionFromSectorId: null, squadId: TEST_SQUAD,
       },
     })
     useStore.getState().advanceToNextSector()
@@ -233,7 +252,7 @@ describe('mission progression', () => {
         activeSectorId: 'a',
         phase: activePhase, engagement: null,
         momentum: 0, advance_rolls: 2, stealth: false, notes: '',
-        transitionFromSectorId: null,
+        transitionFromSectorId: null, squadId: TEST_SQUAD,
       },
     })
   }
@@ -342,7 +361,7 @@ describe('mission progression', () => {
         activeSectorId: 'a',
         phase: 'advance', engagement: null,
         momentum: 0, advance_rolls: 0, stealth: false, notes: '',
-        transitionFromSectorId: null,
+        transitionFromSectorId: null, squadId: TEST_SQUAD,
       },
     })
     useStore.getState().bypassActiveSector()

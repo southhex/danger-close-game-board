@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { ConfirmDialog, StatusBadge } from '../../components'
 import { useStore } from '../../store'
+import { isDeployed } from '../../utils/gameRules'
 
 export default function MissionCompletePanel() {
   const mission = useStore(s => s.mission)
@@ -13,8 +14,8 @@ export default function MissionCompletePanel() {
 
   const cleared = mission.sectors.filter(s => s.status === 'cleared')
   const total = mission.sectors.length
-  const survivors = allTroopers.filter(t => t.active && t.status !== 'dead')
-  const lost = allTroopers.filter(t => t.status === 'dead')
+  const survivors = allTroopers.filter(t => isDeployed(t, mission) && t.status !== 'dead')
+  const lost = allTroopers.filter(t => isDeployed(t, mission) && t.status === 'dead')
 
   const momentumLabel = (m: number): string => {
     if (m === 3) return 'VICTORY'

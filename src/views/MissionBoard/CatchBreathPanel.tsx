@@ -4,6 +4,7 @@ import { useStore } from '../../store'
 import SectorEditorModal from './SectorEditorModal'
 import SectorHeader from './SectorHeader'
 import AdvancePreview from './AdvancePreview'
+import { isDeployed } from '../../utils/gameRules'
 
 export default function CatchBreathPanel() {
   const mission = useStore(s => s.mission)
@@ -14,7 +15,7 @@ export default function CatchBreathPanel() {
   const updateEngagement = useStore(s => s.updateEngagement)
 
   // Derive in component body, not in selectors
-  const activeTroopers = allTroopers.filter(t => t.active && t.status !== 'dead')
+  const activeTroopers = allTroopers.filter(t => isDeployed(t, mission) && t.status !== 'dead')
   const activeSector = mission ? mission.sectors.find(s => s.id === mission.activeSectorId) : null
   const currentIdx = mission ? mission.sectors.findIndex(s => s.id === mission.activeSectorId) : -1
   const nextSector = mission

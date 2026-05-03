@@ -10,7 +10,7 @@ import { gearByName } from '../data/gear'
 import {
   clampMomentum, clampGrit, clampAmmo, clampUses,
   defposForResult, momentumForResult, stealthShouldClear,
-  pressureIncreases,
+  pressureIncreases, isDeployed,
 } from '../utils/gameRules'
 import { newId } from '../utils/id'
 import {
@@ -184,7 +184,7 @@ function clearAndAdvanceMission(
   )
 
   const nextTroopers = troopers.map(t => {
-    if (!t.active) return t
+    if (!isDeployed(t, mission)) return t
     const jumpPackMax = t.special_gear === 'Jump Pack' ? maxUsesFor('Jump Pack') : t.special_gear_uses
     return {
       ...t,
@@ -507,10 +507,13 @@ export const useStore = create<Store>()(
 
     prepareMission: () => {
       if (get().authStatus === 'authenticated' && !get().currentCampaignId) return
-      set((s) => ({
-        troopers: s.troopers.map(t => t.active ? resetTrooperForMission(t) : t),
-        mission: s.mission ?? { ...DEFAULT_MISSION, id: newId() },
-      }))
+      set((s) => {
+        const m = s.mission ?? { ...DEFAULT_MISSION, id: newId() }
+        return {
+          troopers: s.troopers.map(t => isDeployed(t, m) ? resetTrooperForMission(t) : t),
+          mission: m,
+        }
+      })
       scheduleSync()
     },
 
@@ -524,10 +527,13 @@ export const useStore = create<Store>()(
 
     resetMission: () => {
       if (get().authStatus === 'authenticated' && !get().currentCampaignId) return
-      set((s) => ({
-        mission: { ...DEFAULT_MISSION, id: newId() },
-        troopers: s.troopers.map(t => t.active ? resetTrooperForMission(t) : t),
-      }))
+      set((s) => {
+        const m = { ...DEFAULT_MISSION, id: newId(), squadId: s.mission?.squadId ?? null }
+        return {
+          mission: m,
+          troopers: s.troopers.map(t => isDeployed(t, m) ? resetTrooperForMission(t) : t),
+        }
+      })
       scheduleSync()
     },
 
@@ -539,7 +545,7 @@ export const useStore = create<Store>()(
         const mom = momentumForResult(result)
         const clearStealth = stealthShouldClear(result)
         const nextTroopers = s.troopers.map(t => {
-          if (!t.active) return t
+          if (!isDeployed(t, s.mission)) return t
           const next = { ...t }
           if (dpos) next.defpos = dpos
           if (trooperOffpos && trooperOffpos[t.id]) next.offpos = trooperOffpos[t.id]
@@ -802,18 +808,18 @@ export const useStore = create<Store>()(
           nextMods = { ...nextMods, atkPenalty: 2 }
         } else if (tactic === 'encircle') {
           nextTroopers = s.troopers.map(t =>
-            t.active && t.defpos === 'fortified' ? { ...t, defpos: 'incover' as const } : t,
+            isDeployed(t, s.mission) && t.defpos === 'fortified' ? { ...t, defpos: 'incover' as const } : t,
           )
         } else if (tactic === 'push_forward') {
           nextTroopers = s.troopers.map(t => {
-            if (!t.active) return t
+            if (!isDeployed(t, s.mission)) return t
             if (t.defpos === 'fortified') return { ...t, defpos: 'incover' as const }
             if (t.defpos === 'incover') return { ...t, defpos: 'flanked' as const }
             return t
           })
         } else if (tactic === 'fall_back') {
           nextTroopers = s.troopers.map(t => {
-            if (!t.active) return t
+            if (!isDeployed(t, s.mission)) return t
             if (t.offpos === 'flanking') return { ...t, offpos: 'engaged' as const }
             if (t.offpos === 'engaged') return { ...t, offpos: 'limited' as const }
             return t
@@ -851,7 +857,7 @@ export const useStore = create<Store>()(
         }
 
         nextTroopers = nextTroopers.map(t =>
-          t.active && t.suppressed && t.defpos === 'fortified' ? { ...t, suppressed: false } : t,
+          isDeployed(t, s.mission) && t.suppressed && t.defpos === 'fortified' ? { ...t, suppressed: false } : t,
         )
 
         let newCountdown = eng.radioStrikeCountdown
@@ -1142,8 +1148,13 @@ export const useStore = create<Store>()(
     },
 
     assignTrooperToSquad: (trooperId, squadId) => {
-      set(s => ({
-        troopers: s.troopers.map(t => t.id === trooperId ? { ...t, squadId } : t),
+      const s = get()
+      if (squadId !== null) {
+        const memberCount = s.troopers.filter(t => t.squadId === squadId && t.id !== trooperId).length
+        if (memberCount >= 5) throw new Error('Squad is full (5 max)')
+      }
+      set(state => ({
+        troopers: state.troopers.map(t => t.id === trooperId ? { ...t, squadId } : t),
       }))
       scheduleSync()
     },

@@ -14,9 +14,15 @@ export default function TrooperCard({ trooper, onClick }: Props) {
   return (
     <button onClick={onClick}
       className={`text-left bg-surface border border-border rounded-xl overflow-hidden flex flex-col w-full
-        ${trooper.active ? '' : 'opacity-45'}`}>
+        ${trooper.squadId ? '' : 'opacity-45'}`}>
       {/* Status stripe */}
       <div style={{ height: 3, background: statusColor, width: '100%' }} />
+
+      {trooper.recovering && (
+        <div className="text-[9px] font-bold tracking-wide bg-warn/20 text-warn px-2 py-0.5 text-center uppercase">
+          Recovering
+        </div>
+      )}
 
       {/* Body */}
       <div className="p-3.5 flex flex-col gap-2 flex-1">

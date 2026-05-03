@@ -7,6 +7,7 @@ import OffenseStep from './OffenseStep'
 import DefenseStep from './DefenseStep'
 import MomentumStep from './MomentumStep'
 import EnemyTacticsStep from './EnemyTacticsStep'
+import { isDeployed } from '../../utils/gameRules'
 import type { EngagementState } from '../../types'
 
 const STEPS: EngagementState['step'][] = ['intent', 'offense', 'defense', 'momentum', 'enemy_tactics']
@@ -41,7 +42,7 @@ export default function EngagementPanel() {
   const eng = mission.engagement
   const activeSector = mission.sectors.find(s => s.id === mission.activeSectorId) ?? mission.sectors[0]
   const pressureCap = activeSector.tl + 1
-  const activeTroopers = allTroopers.filter(t => t.active && t.status !== 'dead')
+  const activeTroopers = allTroopers.filter(t => isDeployed(t, mission) && t.status !== 'dead')
 
   return (
     <div className="flex flex-col gap-3">

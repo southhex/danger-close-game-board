@@ -34,7 +34,6 @@ export interface Trooper {
   name: string
   fullname: string
   callsign: string
-  active: boolean
   perkpoints: number
   mobility: number         // effective base, auto-computed (5 − gear costs)
   armor: string
@@ -45,9 +44,8 @@ export interface Trooper {
   perks: Perk[]
   notes: string
 
-  // Stage 2 additions — optional during the cutover
-  squadId?: string | null
-  recovering?: boolean
+  squadId: string | null
+  recovering: boolean
 
   // Mission-state
   grit: number
@@ -146,7 +144,10 @@ export interface MissionState {
   stealth: boolean
   notes: string
   transitionFromSectorId: string | null
-  // Stage 2 additions — optional during cutover
+  // Stage 2 — squadId on the live mission identifies deployed troopers.
+  // Optional until Stage 6's MissionState→Mission cutover.
+  squadId?: string | null
+  status?: MissionStatus
   nextAdvanceBonus?: number
   pendingAttachedForces?: AttachedForce[]
 }

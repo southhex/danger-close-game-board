@@ -10,14 +10,13 @@ import MissionCompletePanel from './MissionCompletePanel'
 
 export default function MissionBoard() {
   const mission = useStore(s => s.mission)
-  const prepareMission = useStore(s => s.prepareMission)
 
   if (!mission) {
     return (
       <div className="p-6 flex flex-col items-center justify-center gap-3">
         <div className="lbl">NO ACTIVE MISSION</div>
-        <div className="text-[11px] text-muted">Initialise a mission from the Barracks (Prepare for Mission) or start a blank one now.</div>
-        <button onClick={prepareMission} className="text-[11px] text-warn border border-warn px-3 py-1">START MISSION</button>
+        <div className="text-[11px] text-muted">Deploy a squad from HQ to begin a mission.</div>
+        <button disabled className="text-[11px] text-muted border border-border px-3 py-1 opacity-40 cursor-not-allowed">START MISSION</button>
       </div>
     )
   }

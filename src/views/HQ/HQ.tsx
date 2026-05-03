@@ -18,7 +18,7 @@ export default function HQ() {
   const descRef = useRef<HTMLTextAreaElement>(null)
 
   const trooperCount = allTroopers.length
-  const activeCount  = allTroopers.filter(t => t.active).length
+  const activeCount  = allTroopers.filter(t => t.squadId !== null).length
   const lostCount    = allTroopers.filter(t => t.status === 'dead').length
 
   const handleNameBlur = async () => {

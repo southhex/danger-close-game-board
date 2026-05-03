@@ -4,20 +4,19 @@ import type {
 } from '../types'
 
 /**
- * Stage 2: A trooper is "deployed" on a live mission iff their squadId matches
- * the live mission's squadId. During the cutover from `Trooper.active`, troopers
- * with no squadId fall back to the legacy `active` flag so existing flows keep
- * working until Stage 3 removes `active` entirely.
+ * A trooper is "deployed" on the live mission iff their squadId matches the
+ * mission's squadId. Accepts both Mission (Stage 6+) and MissionState (during
+ * the cutover) — both carry an optional squadId that points at the deployed squad.
  */
 export function isDeployed(
   t: Trooper,
   mission: Mission | MissionState | null | undefined,
 ): boolean {
-  if (t.squadId === undefined) return t.active
   if (!mission) return false
+  if (!t.squadId) return false
   const m = mission as Mission & MissionState
-  if ('status' in m && m.status !== 'live') return false
-  const missionSquadId = (m as Mission).squadId
+  if (m.status !== undefined && m.status !== 'live') return false
+  const missionSquadId = (m as { squadId?: string | null }).squadId
   if (!missionSquadId) return false
   return t.squadId === missionSquadId
 }
@@ -40,7 +39,7 @@ export function baseMobilityFromCosts(costs: number[]): number {
 
 export function woundCount(troopers: Trooper[]): number {
   return troopers.filter(
-    t => t.active && (t.status === 'wounded' || t.status === 'bleedingout'),
+    t => t.status === 'wounded' || t.status === 'bleedingout',
   ).length
 }
 
@@ -129,7 +128,7 @@ export function canSetDefpos(
 ): boolean {
   if (next !== 'fortified') return true
   const currentFortified = squad.filter(
-    t => t.active && t.id !== target.id && t.defpos === 'fortified',
+    t => t.id !== target.id && t.defpos === 'fortified',
   ).length
   return currentFortified + 1 <= fortifiedLimit(cover)
 }
@@ -142,7 +141,7 @@ export function canSetOffpos(
 ): boolean {
   if (next !== 'flanking') return true
   const currentFlanking = squad.filter(
-    t => t.active && t.id !== target.id && t.offpos === 'flanking',
+    t => t.id !== target.id && t.offpos === 'flanking',
   ).length
   return currentFlanking + 1 <= flankingLimit(space)
 }
@@ -212,7 +211,7 @@ export function hardTargetDefHits(
   target: HardTarget,
   troopers: Trooper[],
 ): Record<string, number> {
-  const active = troopers.filter(t => t.active && t.status !== 'dead')
+  const active = troopers.filter(t => t.status !== 'dead')
   const result: Record<string, number> = {}
 
   if (target.type === 'tank') {

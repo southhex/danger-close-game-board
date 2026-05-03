@@ -1,7 +1,7 @@
 import { useMemo, useState, useEffect } from 'react'
 import { useStore } from '../../store'
 import {
-  advanceModifier, advanceResult, woundCount, clampAmmo,
+  advanceModifier, advanceResult, woundCount, clampAmmo, isDeployed,
 } from '../../utils/gameRules'
 import { rollDice } from '../../utils/dice'
 import { newId } from '../../utils/id'
@@ -30,8 +30,8 @@ export default function AdvanceRollPanel() {
   const [phase, setPhase] = useState<Phase>({ kind: 'setup' })
   const [showTable, setShowTable] = useState(false)
 
-  const activeTroopers = useMemo(() => troopers.filter(t => t.active), [troopers])
-  const wounds = useMemo(() => woundCount(troopers), [troopers])
+  const activeTroopers = useMemo(() => troopers.filter(t => isDeployed(t, mission)), [troopers, mission])
+  const wounds = useMemo(() => woundCount(activeTroopers), [activeTroopers])
 
   if (!mission) return null
 

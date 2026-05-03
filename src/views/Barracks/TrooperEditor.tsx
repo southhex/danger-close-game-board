@@ -18,9 +18,10 @@ interface Props {
 }
 
 const EMPTY: Omit<Trooper, 'id'> = {
-  name: '', fullname: '', callsign: '', active: true, perkpoints: 0,
+  name: '', fullname: '', callsign: '', perkpoints: 0,
   mobility: 5, armor: 'Medium Armor', weapon: 'Assault Rifle',
   special_weapon: '', special_gear: '', tag: '', perks: [], notes: '',
+  squadId: null, recovering: false,
   grit: 1, grit_max: 1, ammo: 3, ammo_max: 3,
   status: 'ok', offpos: 'engaged', defpos: 'incover',
   suppressed: false, def_modifier: 0, special_weapon_uses: -1, special_gear_uses: -1,
@@ -39,6 +40,7 @@ function optionsFor(type: 'weapon' | 'specialweapon' | 'specialequipment' | 'arm
 
 export default function TrooperEditor({ open, trooperId, onClose }: Props) {
   const allTroopers = useStore(s => s.troopers)
+  const squads = useStore(s => s.squads)
   const existing = trooperId ? allTroopers.find(t => t.id === trooperId) : undefined
   const addTrooper = useStore(s => s.addTrooper)
   const updateTrooper = useStore(s => s.updateTrooper)
@@ -114,10 +116,23 @@ export default function TrooperEditor({ open, trooperId, onClose }: Props) {
             </div>
           )}
 
-          <label className="col-span-1 flex items-center gap-2 mt-2">
-            <input type="checkbox" checked={form.active} onChange={e => set('active', e.target.checked)} />
-            <span className="lbl text-[10px]">ACTIVE</span>
-          </label>
+          <Dropdown
+            className="col-span-1"
+            label="SQUAD"
+            value={form.squadId ?? ''}
+            options={[
+              { value: '', label: '— Unassigned —' },
+              ...squads.map(sq => {
+                const memberCount = allTroopers.filter(t => t.squadId === sq.id && t.id !== trooperId).length
+                const full = memberCount >= 5
+                const recovering = form.recovering
+                const disabled = (full && form.squadId !== sq.id) || recovering
+                const suffix = full ? ' (FULL)' : ''
+                return { value: sq.id, label: `${sq.name}${suffix}`, disabled }
+              }),
+            ]}
+            onChange={v => set('squadId', v === '' ? null : v)}
+          />
           <label className="col-span-1">
             <div className="lbl text-[10px] mb-1">PERK POINTS</div>
             <input type="number" className="w-full bg-bg border border-border rounded-md text-ink text-xs px-2 py-1 font-mono focus:outline-none focus:border-accent" value={form.perkpoints} onChange={e => set('perkpoints', Number(e.target.value))} />

@@ -2,11 +2,12 @@ import { useMemo, useState } from 'react'
 import { useStore } from '../../store'
 import TrooperMissionCard from './TrooperMissionCard'
 import TrooperDetailPanel from './TrooperDetailPanel'
+import { isDeployed } from '../../utils/gameRules'
 
 export default function TrooperCardDock() {
   const allTroopers = useStore(s => s.troopers)
-  const troopers = useMemo(() => allTroopers.filter(t => t.active), [allTroopers])
   const mission = useStore(s => s.mission)
+  const troopers = useMemo(() => allTroopers.filter(t => isDeployed(t, mission)), [allTroopers, mission])
   const [selectedId, setSelectedId] = useState<string | null>(null)
 
   if (!mission) return null
@@ -30,7 +31,7 @@ export default function TrooperCardDock() {
               <div className="lbl text-[9px] mb-1">TROOPERS</div>
               <div className="flex gap-2 overflow-x-auto snap-x snap-mandatory pb-2">
                 {troopers.length === 0 && (
-                  <div className="text-[10px] text-muted italic">No active troopers. Activate troopers in the Barracks.</div>
+                  <div className="text-[10px] text-muted italic">No deployed troopers. Deploy a squad from HQ.</div>
                 )}
                 {troopers.map(t => (
                   <TrooperMissionCard

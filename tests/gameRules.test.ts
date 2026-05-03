@@ -12,9 +12,11 @@ import type { Trooper, MissionSector, HardTarget, Mission } from '../src/types'
 
 function mkTrooper(p: Partial<Trooper> = {}): Trooper {
   return {
-    id: p.id ?? 't1', name: 'X', fullname: '', callsign: '', active: true,
+    id: p.id ?? 't1', name: 'X', fullname: '', callsign: '',
     perkpoints: 0, mobility: 4, armor: '', weapon: '', special_weapon: '',
-    special_gear: '', perks: [], notes: '', grit: 3, ammo: 3, grit_max: 1, ammo_max: 3, status: 'ok',
+    special_gear: '', tag: '', perks: [], notes: '',
+    squadId: null, recovering: false,
+    grit: 3, ammo: 3, grit_max: 1, ammo_max: 3, status: 'ok',
     offpos: 'engaged', defpos: 'incover', suppressed: false, def_modifier: 0,
     special_weapon_uses: -1, special_gear_uses: -1, ...p,
   }
@@ -159,12 +161,11 @@ describe('infiltrationPicks', () => {
 })
 
 describe('woundCount', () => {
-  it('counts active wounded and bleedingout only', () => {
+  it('counts wounded and bleedingout only', () => {
     const squad = [
       mkTrooper({ id: 'a', status: 'wounded' }),
       mkTrooper({ id: 'b', status: 'bleedingout' }),
       mkTrooper({ id: 'c', status: 'grazed' }),
-      mkTrooper({ id: 'd', status: 'wounded', active: false }),
     ]
     expect(woundCount(squad)).toBe(2)
   })
@@ -401,37 +402,33 @@ describe('isDeployed', () => {
     }
   }
 
-  it('falls back to t.active when squadId is undefined (legacy trooper)', () => {
-    const t = mkTrooper({ active: true })
-    delete (t as Partial<Trooper>).squadId
-    expect(isDeployed(t, mkMission())).toBe(true)
-    const t2 = mkTrooper({ active: false })
-    delete (t2 as Partial<Trooper>).squadId
-    expect(isDeployed(t2, mkMission())).toBe(false)
+  it('returns false for trooper with no squadId', () => {
+    const t = mkTrooper({ squadId: null })
+    expect(isDeployed(t, mkMission())).toBe(false)
   })
 
   it('returns true for trooper whose squadId matches a live mission', () => {
-    const t = mkTrooper({ squadId: 'sq1', active: false })
+    const t = mkTrooper({ squadId: 'sq1' })
     expect(isDeployed(t, mkMission({ squadId: 'sq1', status: 'live' }))).toBe(true)
   })
 
   it('returns false when squadIds differ', () => {
-    const t = mkTrooper({ squadId: 'sq2', active: true })
+    const t = mkTrooper({ squadId: 'sq2' })
     expect(isDeployed(t, mkMission({ squadId: 'sq1', status: 'live' }))).toBe(false)
   })
 
   it('returns false when mission is not live', () => {
-    const t = mkTrooper({ squadId: 'sq1', active: true })
+    const t = mkTrooper({ squadId: 'sq1' })
     expect(isDeployed(t, mkMission({ squadId: 'sq1', status: 'blueprint' }))).toBe(false)
   })
 
   it('returns false for null mission', () => {
-    const t = mkTrooper({ squadId: 'sq1', active: true })
+    const t = mkTrooper({ squadId: 'sq1' })
     expect(isDeployed(t, null)).toBe(false)
   })
 
   it('returns false when trooper has squadId but mission has no squadId', () => {
-    const t = mkTrooper({ squadId: 'sq1', active: true })
+    const t = mkTrooper({ squadId: 'sq1' })
     expect(isDeployed(t, mkMission({ squadId: null }))).toBe(false)
   })
 })
