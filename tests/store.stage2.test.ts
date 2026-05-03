@@ -152,4 +152,18 @@ describe('store stage 2 mutators', () => {
     ).rejects.toThrow(/Insufficient/)
     expect(api.spendReqApi).not.toHaveBeenCalled()
   })
+
+  it('setCampaignAirspace PATCHes and updates local campaign', async () => {
+    await useStore.getState().setCampaignAirspace('friendly')
+    expect(api.patchCampaignSettingsApi).toHaveBeenCalledWith('c1', { defaultAirspace: 'friendly' })
+    const c = useStore.getState().campaigns.find(x => x.id === 'c1')!
+    expect(c.defaultAirspace).toBe('friendly')
+  })
+
+  it('setCampaignReqEnabled PATCHes and updates local campaign', async () => {
+    await useStore.getState().setCampaignReqEnabled(false)
+    expect(api.patchCampaignSettingsApi).toHaveBeenCalledWith('c1', { reqEnabled: false })
+    const c = useStore.getState().campaigns.find(x => x.id === 'c1')!
+    expect(c.reqEnabled).toBe(false)
+  })
 })

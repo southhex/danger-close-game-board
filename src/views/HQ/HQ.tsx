@@ -1,55 +1,32 @@
-import { useRef, useState } from 'react'
+import { useState } from 'react'
 import { useStore } from '../../store'
+import CampaignOverviewCard from './CampaignOverviewCard'
+import MissionSummaryCard from './MissionSummaryCard'
+import FieldReportPanel from './FieldReportPanel'
+import type { Mission } from '../../types'
+
+function formatDate(iso?: string | null) {
+  if (!iso) return '—'
+  try { return new Date(iso).toLocaleDateString() } catch { return iso }
+}
+
+const OUTCOME_COLOR: Record<string, string> = {
+  victory: 'text-accent', defeat: 'text-bad', aborted: 'text-warn',
+}
 
 export default function HQ() {
   const campaigns         = useStore(s => s.campaigns)
   const currentCampaignId = useStore(s => s.currentCampaignId)
-  const renameCampaign    = useStore(s => s.renameCampaign)
-  const prepareMission    = useStore(s => s.prepareMission)
-  const setView           = useStore(s => s.setView)
   const allTroopers       = useStore(s => s.troopers)
   const mission           = useStore(s => s.mission)
   const missions          = useStore(s => s.missions)
+  const squads            = useStore(s => s.squads)
   const openBuilder       = useStore(s => s.openMissionBuilder)
-  const deleteMission     = useStore(s => s.deleteMission)
+  const setView           = useStore(s => s.setView)
 
   const campaign = campaigns.find(c => c.id === currentCampaignId) ?? null
 
-  const [nameError, setNameError] = useState<string | null>(null)
-  const [descError, setDescError] = useState<string | null>(null)
-  const nameRef = useRef<HTMLInputElement>(null)
-  const descRef = useRef<HTMLTextAreaElement>(null)
-
-  const trooperCount = allTroopers.length
-  const activeCount  = allTroopers.filter(t => t.squadId !== null).length
-  const lostCount    = allTroopers.filter(t => t.status === 'dead').length
-
-  const handleNameBlur = async () => {
-    if (!campaign || !nameRef.current) return
-    const val = nameRef.current.value.trim()
-    if (!val) { nameRef.current.value = campaign.name; return }
-    if (val === campaign.name) return
-    setNameError(null)
-    try {
-      await renameCampaign(campaign.id, val, campaign.description)
-    } catch (err) {
-      setNameError(err instanceof Error ? err.message : 'Save failed')
-      nameRef.current.value = campaign.name
-    }
-  }
-
-  const handleDescBlur = async () => {
-    if (!campaign || !descRef.current) return
-    const val = descRef.current.value
-    if (val === campaign.description) return
-    setDescError(null)
-    try {
-      await renameCampaign(campaign.id, campaign.name, val)
-    } catch (err) {
-      setDescError(err instanceof Error ? err.message : 'Save failed')
-      descRef.current.value = campaign.description
-    }
-  }
+  const [fieldReportMission, setFieldReportMission] = useState<Mission | null>(null)
 
   if (!campaign) {
     return (
@@ -62,121 +39,142 @@ export default function HQ() {
     )
   }
 
+  const blueprints = missions.filter(m => m.status === 'blueprint')
+  const completed  = missions.filter(m => m.status === 'completed')
+    .slice()
+    .sort((a, b) => (b.completed_at ?? '').localeCompare(a.completed_at ?? ''))
+
+  const liveMission = mission
+
+  // Squad roster stats
+  const squadsWithCounts = squads.map(sq => {
+    const members   = allTroopers.filter(t => t.squadId === sq.id)
+    const recovering = members.filter(t => t.recovering).length
+    return { squad: sq, memberCount: members.length, recovering }
+  })
+
   return (
     <div className="p-4 flex flex-col gap-4 max-w-xl">
-      {/* Campaign header */}
-      <section className="bg-surface border border-border rounded-xl p-4 flex flex-col gap-3">
-        <div className="text-[10px] uppercase tracking-widest text-muted">Campaign</div>
+      {/* 1. Campaign overview */}
+      <CampaignOverviewCard />
 
-        <div className="flex flex-col gap-1">
-          <label className="text-[10px] uppercase tracking-widest text-muted">Name</label>
-          <input
-            ref={nameRef}
-            type="text"
-            defaultValue={campaign.name}
-            onBlur={handleNameBlur}
-            onKeyDown={e => { if (e.key === 'Enter') e.currentTarget.blur() }}
-            className="bg-bg border border-border rounded-md text-ink text-[13px] px-2.5 py-1.5 w-full focus:outline-none focus:border-accent"
-          />
-          {nameError && <div className="text-[11px] text-bad">{nameError}</div>}
-        </div>
-
-        <div className="flex flex-col gap-1">
-          <label className="text-[10px] uppercase tracking-widest text-muted">Description</label>
-          <textarea
-            ref={descRef}
-            defaultValue={campaign.description}
-            onBlur={handleDescBlur}
-            rows={3}
-            className="bg-bg border border-border rounded-md text-ink text-[12px] px-2.5 py-1.5 w-full resize-none focus:outline-none focus:border-accent"
-          />
-          {descError && <div className="text-[11px] text-bad">{descError}</div>}
-        </div>
-      </section>
-
-      {/* Stats */}
-      <section className="flex gap-2">
-        {[
-          { label: 'TROOPERS', value: trooperCount },
-          { label: 'ACTIVE',   value: activeCount },
-          { label: 'LOST',     value: lostCount },
-        ].map(({ label, value }) => (
-          <div key={label} className="flex-1 bg-surface border border-border rounded-xl p-3 flex flex-col gap-1 items-center">
-            <div className="text-[10px] uppercase tracking-widest text-muted">{label}</div>
-            <div className="text-[22px] font-bold text-ink font-mono leading-none">{value}</div>
-          </div>
-        ))}
-      </section>
-
-      {/* Mission status */}
-      {mission === null ? (
-        <button
-          onClick={prepareMission}
-          className="bg-surface border border-border rounded-xl text-accent text-[12px] uppercase tracking-widest px-4 py-2.5 hover:border-accent transition-colors text-left"
-        >
-          + Start Quick Mission
-        </button>
-      ) : (
-        <div className="bg-surface border border-border rounded-xl p-3 flex items-center justify-between">
-          <div className="flex items-center gap-2">
+      {/* 2. Current mission */}
+      {liveMission && (
+        <section className="bg-surface border border-border rounded-xl p-4 flex flex-col gap-2">
+          <div className="flex items-center justify-between">
+            <div className="lbl">Current Mission</div>
             <span className="text-[9px] font-bold tracking-wide bg-accent text-bg rounded-pill px-2 py-0.5">LIVE</span>
-            <span className="text-[12px] text-ink">{mission.name}</span>
           </div>
-          <button
-            onClick={() => setView('mission')}
-            className="text-[12px] text-accent hover:underline"
-          >
-            → Mission
-          </button>
-        </div>
+          <div className="flex items-center justify-between gap-2">
+            <div>
+              <div className="text-[13px] font-bold text-ink font-mono">{liveMission.name}</div>
+              <div className="text-[10px] text-muted font-mono uppercase mt-0.5">
+                {liveMission.sectors.filter(s => s.status === 'cleared').length}/{liveMission.sectors.length} sectors cleared
+                {' · '}Momentum {liveMission.momentum >= 0 ? '+' : ''}{liveMission.momentum}
+              </div>
+            </div>
+            <button
+              onClick={() => setView('mission')}
+              className="px-3 py-1.5 text-[11px] border border-accent text-accent font-mono shrink-0"
+            >RESUME</button>
+          </div>
+        </section>
       )}
 
-      {/* Available Missions (blueprints) */}
+      {/* 3. Squad roster */}
+      {squads.length > 0 && (
+        <section className="bg-surface border border-border rounded-xl p-4 flex flex-col gap-2">
+          <div className="lbl">Squads</div>
+          <div className="flex flex-col gap-1.5">
+            {squadsWithCounts.map(({ squad, memberCount, recovering }) => (
+              <button
+                key={squad.id}
+                type="button"
+                onClick={() => setView('barracks')}
+                className="flex items-center justify-between px-3 py-2 bg-bg border border-border rounded-md hover:border-accent transition-colors text-left"
+              >
+                <div>
+                  <span className="text-[12px] text-ink font-mono">{squad.name}</span>
+                  {squad.callsign && (
+                    <span className="text-[10px] text-muted font-mono ml-2">{squad.callsign}</span>
+                  )}
+                </div>
+                <div className="flex items-center gap-2 text-[10px] text-muted font-mono">
+                  {recovering > 0 && (
+                    <span className="text-warn" title={`${recovering} recovering`}>● {recovering} rec</span>
+                  )}
+                  <span>{memberCount}/5</span>
+                </div>
+              </button>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* 4. Available missions (blueprints) */}
       <section className="bg-surface border border-border rounded-xl p-4 flex flex-col gap-3">
         <div className="flex items-center justify-between">
-          <div className="text-[10px] uppercase tracking-widest text-muted">Available Missions</div>
+          <div className="lbl">Available Missions</div>
           <button
             onClick={() => openBuilder(null)}
             className="text-[11px] text-accent font-mono hover:underline"
-          >
-            + NEW MISSION
-          </button>
+          >+ NEW MISSION</button>
         </div>
 
-        {missions.filter(m => m.status === 'blueprint').length === 0 ? (
+        {blueprints.length === 0 ? (
           <div className="text-[11px] text-muted font-mono">
             No blueprints. Click "+ NEW MISSION" to plan one.
           </div>
         ) : (
           <div className="flex flex-col gap-2">
-            {missions.filter(m => m.status === 'blueprint').map(m => (
-              <div key={m.id} className="bg-bg border border-border rounded-md p-3 flex items-center justify-between gap-2">
-                <div className="flex flex-col min-w-0">
-                  <div className="text-[12px] text-ink truncate">{m.name || 'Untitled'}</div>
-                  <div className="text-[10px] text-muted font-mono uppercase">
-                    {m.difficulty ?? '—'} · {m.objectiveCategory ?? '—'} · {(m.sectors?.length ?? 0)} sectors
-                  </div>
-                </div>
-                <div className="flex gap-1 flex-shrink-0">
-                  <button
-                    onClick={() => openBuilder(m.id)}
-                    className="px-2 py-1 text-[10px] border border-border text-muted hover:text-ink font-mono"
-                  >
-                    EDIT
-                  </button>
-                  <button
-                    onClick={() => { void deleteMission(m.id) }}
-                    className="px-2 py-1 text-[10px] border border-bad text-bad font-mono"
-                    aria-label={`Delete ${m.name}`}
-                  >
-                    ×
-                  </button>
-                </div>
-              </div>
+            {blueprints.map(m => (
+              <MissionSummaryCard key={m.id} mission={m} />
             ))}
           </div>
         )}
       </section>
+
+      {/* 5. Mission history */}
+      {completed.length > 0 && (
+        <section className="bg-surface border border-border rounded-xl p-4 flex flex-col gap-3">
+          <div className="lbl">Mission History</div>
+          <div className="flex flex-col gap-2">
+            {completed.map(m => {
+              const squad = squads.find(sq => sq.id === m.squadId)
+              return (
+                <button
+                  key={m.id}
+                  type="button"
+                  onClick={() => setFieldReportMission(m)}
+                  className="w-full text-left bg-bg border border-border rounded-md p-3 hover:border-accent transition-colors"
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="text-[12px] text-ink font-mono truncate">{m.name || 'Untitled'}</div>
+                    {m.outcome && (
+                      <div className={`text-[10px] font-bold font-mono uppercase shrink-0 ${OUTCOME_COLOR[m.outcome] ?? 'text-muted'}`}>
+                        {m.outcome}
+                      </div>
+                    )}
+                  </div>
+                  <div className="text-[10px] text-muted font-mono uppercase mt-0.5">
+                    {formatDate(m.completed_at)}
+                    {squad ? ` · ${squad.name}` : ''}
+                  </div>
+                </button>
+              )
+            })}
+          </div>
+        </section>
+      )}
+
+      {/* Field report modal */}
+      {fieldReportMission && (
+        <FieldReportPanel
+          mission={fieldReportMission}
+          open
+          onClose={() => setFieldReportMission(null)}
+        />
+      )}
     </div>
   )
 }
