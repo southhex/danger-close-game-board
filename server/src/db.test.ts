@@ -38,7 +38,7 @@ describe('database migrations', () => {
   })
 
   it('records all migration entries after init', () => {
-    expect(getMigrationCount(db)).toBe(2)
+    expect(getMigrationCount(db)).toBe(3)
   })
 
   it('running migrations again is idempotent — count stays the same, no error', () => {

@@ -8,7 +8,6 @@ interface CampaignRow {
   id: string
   name: string
   description: string
-  current_mission: string | null
   default_airspace: string
   req_enabled: number
   req: number
@@ -87,7 +86,7 @@ export function createCampaignRoutes(db: Database = defaultDb): Hono {
 
     const campaign = db
       .prepare<[string], CampaignRow>(
-        'SELECT id, name, description, current_mission, default_airspace, req_enabled, req, current_mission_id, created_at FROM campaigns WHERE id = ?'
+        'SELECT id, name, description, default_airspace, req_enabled, req, current_mission_id, created_at FROM campaigns WHERE id = ?'
       )
       .get(id)
 
@@ -160,7 +159,6 @@ export function createCampaignRoutes(db: Database = defaultDb): Hono {
         created_at: campaign.created_at,
       },
       troopers: trooperRows.map((r) => JSON.parse(r.data) as unknown),
-      mission: campaign.current_mission ? (JSON.parse(campaign.current_mission) as unknown) : null,
       diceHistory: diceRollRows.map((r) => JSON.parse(r.data) as unknown),
       squads: squadRows.map((s) => ({
         id: s.id,
@@ -178,7 +176,7 @@ export function createCampaignRoutes(db: Database = defaultDb): Hono {
 
     const campaign = db
       .prepare<[string], CampaignRow>(
-        'SELECT id, name, description, current_mission, default_airspace, req_enabled, req, current_mission_id, created_at FROM campaigns WHERE id = ?'
+        'SELECT id, name, description, default_airspace, req_enabled, req, current_mission_id, created_at FROM campaigns WHERE id = ?'
       )
       .get(id)
 
@@ -247,7 +245,7 @@ export function createCampaignRoutes(db: Database = defaultDb): Hono {
 
     const updated = db
       .prepare<[string], CampaignRow>(
-        'SELECT id, name, description, current_mission, default_airspace, req_enabled, req, current_mission_id, created_at FROM campaigns WHERE id = ?'
+        'SELECT id, name, description, default_airspace, req_enabled, req, current_mission_id, created_at FROM campaigns WHERE id = ?'
       )
       .get(id)!
 
@@ -291,20 +289,17 @@ export function createCampaignRoutes(db: Database = defaultDb): Hono {
       return c.json({ error: 'Campaign not found' }, 404)
     }
 
-    let body: { troopers?: unknown; mission?: unknown; diceHistory?: unknown }
+    let body: { troopers?: unknown; diceHistory?: unknown }
     try {
-      body = await c.req.json<{ troopers?: unknown; mission?: unknown; diceHistory?: unknown }>()
+      body = await c.req.json<{ troopers?: unknown; diceHistory?: unknown }>()
     } catch {
       return c.json({ error: 'Invalid JSON body' }, 400)
     }
 
     const troopers = Array.isArray(body.troopers) ? (body.troopers as unknown[]) : []
-    const mission = body.mission !== undefined ? body.mission : null
     const diceHistory = Array.isArray(body.diceHistory)
       ? (body.diceHistory as unknown[]).slice(0, 20)
       : []
-
-    const missionJson = mission !== null ? JSON.stringify(mission) : null
 
     db.transaction(() => {
       // 1. Delete all troopers for this campaign
@@ -335,11 +330,6 @@ export function createCampaignRoutes(db: Database = defaultDb): Hono {
       for (const roll of diceHistory) {
         insertDiceRoll.run(id, JSON.stringify(roll))
       }
-
-      // 5. Update current_mission
-      db.prepare<[string | null, string]>(
-        'UPDATE campaigns SET current_mission = ? WHERE id = ?'
-      ).run(missionJson, id)
     })()
 
     return c.json({ ok: true })

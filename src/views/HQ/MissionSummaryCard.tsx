@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useStore } from '../../store'
 import { Modal, ConfirmDialog } from '../../components'
+import DeployConfirmModal from '../MissionBoard/DeployConfirmModal'
 import type { Mission } from '../../types'
 
 interface Props {
@@ -22,6 +23,7 @@ export default function MissionSummaryCard({ mission }: Props) {
   const [modalOpen, setModalOpen]   = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [deleting, setDeleting]     = useState(false)
+  const [deployModalOpen, setDeployModalOpen] = useState(false)
 
   const sectorCount = mission.sectors?.length ?? 0
 
@@ -87,9 +89,8 @@ export default function MissionSummaryCard({ mission }: Props) {
             >EDIT</button>
             <button
               type="button"
-              disabled
-              title="Deploy flow lands in Stage 6."
-              className="flex-1 px-3 py-1.5 text-[11px] border border-warn text-warn font-mono opacity-40 cursor-not-allowed"
+              onClick={() => { setModalOpen(false); setDeployModalOpen(true) }}
+              className="flex-1 px-3 py-1.5 text-[11px] border border-warn text-warn font-mono"
             >DEPLOY</button>
             <button
               type="button"
@@ -109,6 +110,13 @@ export default function MissionSummaryCard({ mission }: Props) {
         confirmLabel={deleting ? 'Deleting…' : 'Delete'}
         tone="danger"
       />
+
+      {deployModalOpen && (
+        <DeployConfirmModal
+          mission={mission}
+          onClose={() => setDeployModalOpen(false)}
+        />
+      )}
     </>
   )
 }

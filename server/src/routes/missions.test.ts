@@ -314,6 +314,97 @@ describe('PUT /api/missions/:id/state', () => {
   })
 })
 
+describe('Full deploy → PUT state → complete cycle', () => {
+  let db: Database
+  let app: Hono
+  let cookie: string
+  let campaignId: string
+  let squadId: string
+
+  beforeEach(async () => {
+    db = createTestDb()
+    app = buildApp(db)
+    cookie = await setupAndLogin(app)
+    campaignId = await createCampaign(app, cookie)
+    squadId = await createSquad(app, cookie, campaignId)
+  })
+
+  it('deploy → PUT state → GET campaign returns embedded state → complete clears currentMissionId', async () => {
+    // 1. Create blueprint
+    const missionId = await createBlueprint(app, cookie, campaignId)
+
+    // 2. Deploy
+    const deployRes = await app.request(`/api/missions/${missionId}/deploy`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Cookie: cookie },
+      body: JSON.stringify({ squadId }),
+    })
+    expect(deployRes.status).toBe(200)
+    const deployBody = (await deployRes.json()) as { status: string }
+    expect(deployBody.status).toBe('live')
+
+    // 3. Verify campaign currentMissionId is set
+    const campaignRes1 = await app.request(`/api/campaigns/${campaignId}`, { headers: { Cookie: cookie } })
+    const campaignBody1 = (await campaignRes1.json()) as { campaign: { currentMissionId: string | null } }
+    expect(campaignBody1.campaign.currentMissionId).toBe(missionId)
+
+    // 4. PUT mission state
+    const missionState = { phase: 'advance', momentum: 1, sectors: [], advance_rolls: 2 }
+    const putRes = await app.request(`/api/missions/${missionId}/state`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', Cookie: cookie },
+      body: JSON.stringify({ data: { ...missionState, state: missionState } }),
+    })
+    expect(putRes.status).toBe(200)
+
+    // 5. GET campaign — currentMission should include the state we PUT
+    const campaignRes2 = await app.request(`/api/campaigns/${campaignId}`, { headers: { Cookie: cookie } })
+    const campaignBody2 = (await campaignRes2.json()) as {
+      campaign: { currentMissionId: string | null }
+      currentMission: { id: string; status: string; data: Record<string, unknown> } | null
+    }
+    expect(campaignBody2.campaign.currentMissionId).toBe(missionId)
+    expect(campaignBody2.currentMission).not.toBeNull()
+    expect(campaignBody2.currentMission!.data['phase']).toBe('advance')
+    expect(campaignBody2.currentMission!.data['momentum']).toBe(1)
+
+    // 6. Complete the mission
+    const completeRes = await app.request(`/api/missions/${missionId}/complete`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Cookie: cookie },
+      body: JSON.stringify({ fieldReport: 'test', outcome: 'victory' }),
+    })
+    expect(completeRes.status).toBe(200)
+    const completeBody = (await completeRes.json()) as { mission: { status: string }; reqAwarded: number; campaignReq: number }
+    expect(completeBody.mission.status).toBe('completed')
+    expect(completeBody.reqAwarded).toBe(0) // req_enabled=0 by default
+
+    // 7. Verify campaign currentMissionId is null
+    const campaignRes3 = await app.request(`/api/campaigns/${campaignId}`, { headers: { Cookie: cookie } })
+    const campaignBody3 = (await campaignRes3.json()) as { campaign: { currentMissionId: string | null } }
+    expect(campaignBody3.campaign.currentMissionId).toBeNull()
+  })
+
+  it('awards REQ when req_enabled=1', async () => {
+    await setReqEnabled(app, cookie, campaignId)
+    const missionId = await createBlueprint(app, cookie, campaignId)
+    await app.request(`/api/missions/${missionId}/deploy`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Cookie: cookie },
+      body: JSON.stringify({ squadId }),
+    })
+    const res = await app.request(`/api/missions/${missionId}/complete`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Cookie: cookie },
+      body: JSON.stringify({ fieldReport: 'done', outcome: 'victory', awardedReq: 3 }),
+    })
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as { reqAwarded: number; campaignReq: number }
+    expect(body.reqAwarded).toBe(3)
+    expect(body.campaignReq).toBe(3)
+  })
+})
+
 describe('DELETE /api/missions/:id', () => {
   let db: Database
   let app: Hono

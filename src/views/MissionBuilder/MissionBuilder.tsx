@@ -14,6 +14,7 @@ import type {
   InsertionType,
 } from '../../types'
 import SectorBlueprintCard from './SectorBlueprintCard'
+import DeployConfirmModal from '../MissionBoard/DeployConfirmModal'
 
 const DIFFICULTY_OPTIONS: { value: MissionDifficulty; label: string }[] = [
   { value: 'routine',   label: 'Routine'   },
@@ -174,6 +175,7 @@ export default function MissionBuilder() {
     editingMission ? fromMission(editingMission, campaign?.defaultAirspace) : defaultsFromCampaign(campaign?.defaultAirspace),
   )
   const [saving, setSaving] = useState(false)
+  const [deployModalOpen, setDeployModalOpen] = useState(false)
 
   // Re-init when builder target changes
   useEffect(() => {
@@ -283,9 +285,9 @@ export default function MissionBuilder() {
           >{editing ? 'SAVE BLUEPRINT' : 'CREATE BLUEPRINT'}</button>
           <button
             type="button"
-            disabled
-            title="Deploy flow lands in Stage 6."
-            className="px-3 py-1.5 text-xs border border-border text-muted font-mono opacity-40 cursor-not-allowed"
+            onClick={() => setDeployModalOpen(true)}
+            disabled={!editing || !editingMission || !validation.ok}
+            className="px-3 py-1.5 text-xs border border-warn text-warn font-mono disabled:opacity-40 disabled:cursor-not-allowed"
           >DEPLOY NOW</button>
         </div>
       </div>
@@ -462,6 +464,13 @@ export default function MissionBuilder() {
             <div key={err} className="text-[11px] text-bad font-mono">• {err}</div>
           ))}
         </div>
+      )}
+
+      {deployModalOpen && editingMission && (
+        <DeployConfirmModal
+          mission={editingMission}
+          onClose={() => setDeployModalOpen(false)}
+        />
       )}
     </div>
   )

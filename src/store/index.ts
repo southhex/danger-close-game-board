@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import type {
-  AppState, Trooper, MissionState, MissionSector, DiceRoll, ApplyAdvancePayload, View,
+  AppState, Trooper, MissionState, MissionSector, MissionPhase, DiceRoll, ApplyAdvancePayload, View,
   EngagementState, TrooperIntent, OffenseResult, DefenseResult, EnemyTactic,
   HardTarget, AttachedForce, TrooperStatus,
   Campaign, User, AuthStatus,
@@ -19,6 +19,7 @@ import {
   createMissionApi, patchMissionBlueprintApi, deleteMissionApi,
   deployMissionApi, completeMissionApi,
   patchReqApi, spendReqApi, patchCampaignSettingsApi,
+  putMissionStateApi,
 } from '../api/client'
 import { fetchBootstrap, SetupRequiredError } from '../api/bootstrap'
 import { scheduleSync } from '../api/sync'
@@ -57,7 +58,6 @@ interface Store extends AppState {
   addTrooper: (t: Omit<Trooper, 'id'>) => void
   updateTrooper: (id: string, patch: Partial<Trooper>) => void
   deleteTrooper: (id: string) => void
-  prepareMission: () => void
 
   setMission: (patch: Partial<MissionState>) => void
   resetMission: () => void
@@ -149,6 +149,38 @@ const DEFAULT_MISSION: MissionState = {
   stealth: false,
   notes: '',
   transitionFromSectorId: null,
+}
+
+function missionStateFromBlueprint(mission: Mission, squadId: string): MissionState {
+  const rawSectors: MissionSector[] = mission.sectors?.length
+    ? mission.sectors.map(s => ({ ...s, status: 'pending' as const }))
+    : [{ id: newId(), name: 'Sector 1', cover: 0 as const, space: 0 as const, tl: 1 as const, weather: 0 as const, status: 'pending' as const }]
+
+  const firstSector: MissionSector = { ...rawSectors[0], status: 'active' as const }
+  const restSectors = rawSectors.slice(1)
+  const allSectors: MissionSector[] = [firstSector, ...restSectors]
+
+  const phase: MissionPhase = firstSector.contentsState === 'undetermined'
+    ? 'determine_sector'
+    : 'advance'
+
+  return {
+    id: mission.id,
+    name: mission.name,
+    sectors: allSectors,
+    activeSectorId: firstSector.id,
+    phase,
+    engagement: null,
+    momentum: 0,
+    advance_rolls: 0,
+    stealth: mission.stealthStart ?? false,
+    notes: '',
+    transitionFromSectorId: null,
+    squadId,
+    status: 'live',
+    nextAdvanceBonus: undefined,
+    pendingAttachedForces: undefined,
+  }
 }
 
 function maxUsesFor(gearName: string): number {
@@ -481,10 +513,21 @@ export const useStore = create<Store>()(
 
       // Sync top-level Campaign in `campaigns` array with extended fields
       const updatedCampaign = data.campaign
+
+      // Hydrate state.mission from the live mission's embedded state (resume support)
+      const liveMission = missions.find(
+        m => m.id === updatedCampaign?.currentMissionId && m.status === 'live',
+      )
+      let hydratedMission: MissionState | null = null
+      if (liveMission?.state) {
+        hydratedMission = liveMission.state
+      }
+      // If no live mission, hydratedMission stays null (clears any stale state)
+
       set(s => ({
         currentCampaignId: id,
         troopers: data.troopers ?? [],
-        mission: data.mission ?? null,
+        mission: hydratedMission,
         diceHistory: data.diceHistory ?? [],
         squads,
         missions,
@@ -515,18 +558,6 @@ export const useStore = create<Store>()(
     deleteTrooper: (id) => {
       if (get().authStatus === 'authenticated' && !get().currentCampaignId) return
       set((s) => ({ troopers: s.troopers.filter(t => t.id !== id) }))
-      scheduleSync()
-    },
-
-    prepareMission: () => {
-      if (get().authStatus === 'authenticated' && !get().currentCampaignId) return
-      set((s) => {
-        const m = s.mission ?? { ...DEFAULT_MISSION, id: newId() }
-        return {
-          troopers: s.troopers.map(t => isDeployed(t, m) ? resetTrooperForMission(t) : t),
-          mission: m,
-        }
-      })
       scheduleSync()
     },
 
@@ -1201,12 +1232,25 @@ export const useStore = create<Store>()(
     deployMission: async (missionId, squadId) => {
       const updated = await deployMissionApi(missionId, squadId)
       const campaignId = get().currentCampaignId
-      set(s => ({
-        missions: s.missions.map(m => m.id === missionId ? updated : m),
-        campaigns: campaignId
-          ? s.campaigns.map(c => c.id === campaignId ? { ...c, currentMissionId: missionId } : c)
-          : s.campaigns,
-      }))
+
+      // Build fresh MissionState from the returned live mission's blueprint sectors
+      const missionState = missionStateFromBlueprint(updated, squadId)
+
+      set(s => {
+        // Reset troopers in the deployed squad
+        const resetTroopers = s.troopers.map(t =>
+          t.squadId === squadId ? resetTrooperForMission(t) : t,
+        )
+        return {
+          missions: s.missions.map(m => m.id === missionId ? updated : m),
+          campaigns: campaignId
+            ? s.campaigns.map(c => c.id === campaignId ? { ...c, currentMissionId: missionId } : c)
+            : s.campaigns,
+          troopers: resetTroopers,
+          mission: missionState,
+          currentView: 'mission' as View,
+        }
+      })
     },
 
     completeMission: async (missionId, body) => {
@@ -1219,6 +1263,8 @@ export const useStore = create<Store>()(
               ? { ...c, currentMissionId: null, req: result.campaignReq }
               : c)
           : s.campaigns,
+        mission: null,
+        currentView: 'hq' as View,
       }))
     },
 

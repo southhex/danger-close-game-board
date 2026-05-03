@@ -85,7 +85,7 @@ describe('GET /api/campaigns/:id', () => {
     sessionCookie = await setupAndLogin(app)
   })
 
-  it('returns full state (campaign + empty troopers + null mission + empty diceHistory)', async () => {
+  it('returns full state (campaign + empty troopers + empty diceHistory)', async () => {
     const createRes = await app.request('/api/campaigns', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Cookie: sessionCookie },
@@ -101,13 +101,11 @@ describe('GET /api/campaigns/:id', () => {
     const body = await res.json() as {
       campaign: { id: string; name: string; description: string; created_at: string }
       troopers: unknown[]
-      mission: unknown
       diceHistory: unknown[]
     }
     expect(body.campaign.id).toBe(id)
     expect(body.campaign.name).toBe('Alpha Squad')
     expect(body.troopers).toEqual([])
-    expect(body.mission).toBeNull()
     expect(body.diceHistory).toEqual([])
   })
 
@@ -223,15 +221,14 @@ describe('PUT /api/campaigns/:id/state', () => {
     campaignId = body.id
   })
 
-  it('stores troopers + mission + diceHistory; GET returns them back', async () => {
+  it('stores troopers + diceHistory; GET returns them back', async () => {
     const trooper = { id: 'trooper-1', created_at: '2026-01-01T00:00:00.000Z', name: 'Sgt Miller', mobility: 3 }
-    const mission = { id: 'mission-1', name: 'Op Overlord', sectors: [] }
     const diceRoll = { id: 1, result: 6, label: 'Attack' }
 
     const putRes = await app.request(`/api/campaigns/${campaignId}/state`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json', Cookie: sessionCookie },
-      body: JSON.stringify({ troopers: [trooper], mission, diceHistory: [diceRoll] }),
+      body: JSON.stringify({ troopers: [trooper], diceHistory: [diceRoll] }),
     })
     expect(putRes.status).toBe(200)
     const putBody = await putRes.json() as { ok: boolean }
@@ -244,13 +241,11 @@ describe('PUT /api/campaigns/:id/state', () => {
     const getBody = await getRes.json() as {
       campaign: unknown
       troopers: unknown[]
-      mission: unknown
       diceHistory: unknown[]
     }
 
     expect(getBody.troopers).toHaveLength(1)
     expect((getBody.troopers[0] as { name: string }).name).toBe('Sgt Miller')
-    expect((getBody.mission as { name: string }).name).toBe('Op Overlord')
     expect(getBody.diceHistory).toHaveLength(1)
     expect((getBody.diceHistory[0] as { result: number }).result).toBe(6)
   })

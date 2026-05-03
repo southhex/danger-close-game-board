@@ -1,10 +1,11 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
-import type { Mission, Squad } from '../src/types'
+import type { Mission, Squad, MissionState } from '../src/types'
 
 vi.mock('../src/api/client', async () => {
   const actual = await vi.importActual<typeof import('../src/api/client')>('../src/api/client')
   return {
     ...actual,
+    apiFetch: vi.fn(),
     createSquadApi: vi.fn(async (campaignId: string, input: Omit<Squad, 'id' | 'campaignId' | 'created_at'>) => ({
       id: 'sq-new',
       campaignId,
@@ -30,6 +31,7 @@ vi.mock('../src/api/client', async () => {
       status: 'live',
       name: 'Op',
       squadId,
+      sectors: [{ id: 's1', name: 'Sector Alpha', cover: 1, space: 1, tl: 2, weather: 0, status: 'pending' }],
     })),
     completeMissionApi: vi.fn(async (missionId: string) => ({
       mission: { id: missionId, campaignId: 'c1', status: 'completed' as const, name: 'Op' },
@@ -165,5 +167,106 @@ describe('store stage 2 mutators', () => {
     expect(api.patchCampaignSettingsApi).toHaveBeenCalledWith('c1', { reqEnabled: false })
     const c = useStore.getState().campaigns.find(x => x.id === 'c1')!
     expect(c.reqEnabled).toBe(false)
+  })
+
+  // ── Test A: deployMission sets state.mission ──────────────────────────────
+
+  it('deployMission sets state.mission with correct squadId and phase', async () => {
+    useStore.setState({
+      missions: [{ id: 'm1', campaignId: 'c1', status: 'blueprint', name: 'Op' }],
+      troopers: [{
+        id: 't1', name: 'A', fullname: '', callsign: '',
+        perkpoints: 0, mobility: 4, armor: '', weapon: '', special_weapon: '', special_gear: '',
+        tag: '', perks: [], notes: '', squadId: 'sq1', recovering: false,
+        grit: 1, grit_max: 3, ammo: 1, ammo_max: 3,
+        status: 'wounded', offpos: 'limited', defpos: 'flanked',
+        suppressed: true, def_modifier: -1, special_weapon_uses: -1, special_gear_uses: -1,
+      }],
+    })
+    await useStore.getState().deployMission('m1', 'sq1')
+    const s = useStore.getState()
+    expect(s.mission).not.toBeNull()
+    expect(s.mission!.squadId).toBe('sq1')
+    expect(s.mission!.phase).toBe('advance')
+    expect(s.mission!.sectors.length).toBe(1)
+    // Troopers in the squad were reset
+    expect(s.troopers[0].grit).toBe(3)
+    expect(s.troopers[0].ammo).toBe(3)
+    expect(s.troopers[0].status).toBe('ok')
+    // Mission in list has status live
+    expect(s.missions.find(m => m.id === 'm1')!.status).toBe('live')
+    // currentView navigated to 'mission'
+    expect(s.currentView).toBe('mission')
+  })
+
+  // ── Test B: completeMission clears state.mission ──────────────────────────
+
+  it('completeMission sets state.mission to null and updates mission status', async () => {
+    const liveMissionState: MissionState = {
+      id: 'm1', name: 'Op',
+      sectors: [{ id: 's1', name: 'Alpha', cover: 1, space: 1, tl: 2, weather: 0, status: 'active' }],
+      activeSectorId: 's1', phase: 'mission_complete', engagement: null,
+      momentum: 1, advance_rolls: 2, stealth: false, notes: '',
+      transitionFromSectorId: null, squadId: 'sq1',
+    }
+    useStore.setState({
+      missions: [{ id: 'm1', campaignId: 'c1', status: 'live', name: 'Op', squadId: 'sq1' }],
+      campaigns: [{ id: 'c1', name: 'Camp', description: '', created_at: '', req: 3, reqEnabled: true, currentMissionId: 'm1' }],
+      mission: liveMissionState,
+    })
+    await useStore.getState().completeMission('m1', { fieldReport: 'test', outcome: 'victory' })
+    const s = useStore.getState()
+    expect(s.mission).toBeNull()
+    expect(s.missions.find(m => m.id === 'm1')!.status).toBe('completed')
+    expect(s.currentView).toBe('hq')
+  })
+
+  // ── Test C: selectCampaign hydrates state.mission from live mission state ─
+
+  it('selectCampaign hydrates state.mission when live mission has state', async () => {
+    const liveMissionState: MissionState = {
+      id: 'live-m', name: 'Hot LZ',
+      sectors: [{ id: 'sec1', name: 'Alpha', cover: 1, space: 1, tl: 2, weather: 0, status: 'active' }],
+      activeSectorId: 'sec1', phase: 'advance', engagement: null,
+      momentum: 1, advance_rolls: 1, stealth: false, notes: '',
+      transitionFromSectorId: null, squadId: 'sq1',
+    }
+
+    // selectCampaign calls apiFetch directly — mock the response via the imported api object
+    vi.mocked(api.apiFetch).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        campaign: {
+          id: 'c1', name: 'Camp', description: '', created_at: '',
+          defaultAirspace: 'contested', reqEnabled: false, req: 0,
+          currentMissionId: 'live-m',
+        },
+        troopers: [],
+        diceHistory: [],
+        squads: [],
+        missions: [
+          { id: 'live-m', status: 'live', name: 'Hot LZ', completed_at: null, created_at: '' },
+        ],
+        currentMission: {
+          id: 'live-m',
+          status: 'live',
+          data: {
+            name: 'Hot LZ',
+            squadId: 'sq1',
+            state: liveMissionState,
+          },
+          completed_at: null,
+          created_at: '',
+        },
+      }),
+    } as Response)
+
+    await useStore.getState().selectCampaign('c1')
+    const s = useStore.getState()
+    expect(s.mission).not.toBeNull()
+    expect(s.mission!.phase).toBe('advance')
+    expect(s.mission!.sectors.length).toBe(1)
+    expect(s.mission!.squadId).toBe('sq1')
+    expect(s.currentCampaignId).toBe('c1')
   })
 })

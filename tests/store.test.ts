@@ -47,7 +47,7 @@ describe('store', () => {
     expect(t.name).toBe('Warden')
   })
 
-  it('prepareMission resets active trooper mission-state', () => {
+  it('resetMission resets active trooper mission-state', () => {
     useStore.setState({
       troopers: [makeTrooper({
         id: 'a', name: 'A', armor: 'Medium Armor', weapon: 'Assault Rifle',
@@ -63,7 +63,7 @@ describe('store', () => {
         transitionFromSectorId: null, squadId: TEST_SQUAD,
       },
     })
-    useStore.getState().prepareMission()
+    useStore.getState().resetMission()
     const t = useStore.getState().troopers[0]
     expect(t.grit).toBe(3)
     expect(t.ammo).toBe(3)
