@@ -76,18 +76,28 @@ export interface Squad {
 
 export type MissionStatus = 'blueprint' | 'live' | 'completed'
 
-export type MissionObjectiveCategory = 'destroy' | 'recover' | 'recon' | 'rescue' | 'hold' | 'free_roam'
-export type MissionObjectiveSubtype = string
+export type MissionObjectiveCategory = 'seize_secure' | 'hit_run' | 'defensive'
 
-export type MissionDifficulty = 'routine' | 'standard' | 'hard' | 'extreme'
+export type MissionObjectiveSubtype =
+  | 'assault' | 'search_destroy' | 'breach'
+  | 'raid' | 'recon' | 'extraction' | 'recovery' | 'sabotage'
+  | 'siege' | 'evacuation' | 'last_stand'
 
+export type MissionDifficulty = 'routine' | 'hazardous' | 'desperate'
+
+// Server-aligned values; UI labels render Friendly/Contested/Denied.
 export type Airspace = 'contested' | 'friendly' | 'denied'
 
-export type InsertionType = 'lz' | 'ez' | 'march'
+export type InsertionType = 'air' | 'ground'
 
-export type SectorRole = 'lz' | 'ez' | 'objective' | 'transit' | 'optional'
+export interface MissionInsertion {
+  lz: InsertionType
+  ez: InsertionType | null
+}
 
-export type SectorContentsState = 'undetermined' | 'rolled' | 'preset'
+export type SectorRole = 'standard' | 'lz' | 'ez' | 'objective'
+
+export type SectorContentsState = 'predetermined' | 'undetermined' | 'rolled'
 
 export interface Mission {
   id: string
@@ -99,7 +109,10 @@ export interface Mission {
   objectiveCategory?: MissionObjectiveCategory
   objectiveSubtype?: MissionObjectiveSubtype
   airspace?: Airspace
-  insertion?: InsertionType
+  insertion?: MissionInsertion
+  defaultWeather?: -2 | -1 | 0 | 1
+  stealthStart?: boolean
+  sectors?: MissionSector[]        // blueprint sectors; runtime sectors live on `state.sectors`
   squadId?: string | null
   state?: MissionState | null      // engagement runtime data when status='live'
   fieldReport?: string
@@ -251,7 +264,8 @@ export interface ApplyAdvancePayload {
   trooperOffpos?: Record<string, OffensivePosition>
 }
 
-export type View = 'hq' | 'barracks' | 'armoury' | 'mission' | 'settings'
+// 'builder' is a non-nav route; reached only via HQ "+ NEW MISSION" / "EDIT".
+export type View = 'hq' | 'barracks' | 'armoury' | 'mission' | 'settings' | 'builder'
 
 export interface Campaign {
   id: string

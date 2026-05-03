@@ -125,6 +125,10 @@ export function createCampaignRoutes(db: Database = defaultDb): Hono {
         id: m.id,
         status: m.status,
         name: typeof data['name'] === 'string' ? (data['name'] as string) : '',
+        // Include full blueprint data so the Mission Builder can hydrate without
+        // a follow-up fetch. Live missions are returned in full via `currentMission`;
+        // completed missions still get just the lite shape.
+        data: m.status === 'blueprint' ? data : undefined,
         completed_at: m.completed_at,
         created_at: m.created_at,
       }

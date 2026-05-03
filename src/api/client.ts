@@ -1,4 +1,4 @@
-import type { Mission, MissionState, Squad } from '../types'
+import type { Mission, MissionSector, MissionState, Squad } from '../types'
 
 export class AuthError extends Error {
   constructor(message = 'Unauthorized') {
@@ -120,6 +120,9 @@ function missionFromServer(row: MissionServerShape): Mission {
     objectiveSubtype: d['objectiveSubtype'] as Mission['objectiveSubtype'] | undefined,
     airspace: d['airspace'] as Mission['airspace'] | undefined,
     insertion: d['insertion'] as Mission['insertion'] | undefined,
+    defaultWeather: d['defaultWeather'] as Mission['defaultWeather'] | undefined,
+    stealthStart: typeof d['stealthStart'] === 'boolean' ? (d['stealthStart'] as boolean) : undefined,
+    sectors: Array.isArray(d['sectors']) ? (d['sectors'] as MissionSector[]) : undefined,
     squadId: typeof d['squadId'] === 'string' ? (d['squadId'] as string) : null,
     state: (d['state'] as MissionState | null | undefined) ?? null,
     fieldReport: typeof d['fieldReport'] === 'string' ? (d['fieldReport'] as string) : '',
@@ -139,6 +142,9 @@ function missionToServerData(m: Mission): Record<string, unknown> {
     objectiveSubtype: m.objectiveSubtype,
     airspace: m.airspace,
     insertion: m.insertion,
+    defaultWeather: m.defaultWeather,
+    stealthStart: m.stealthStart,
+    sectors: m.sectors,
     squadId: m.squadId ?? null,
     state: m.state ?? null,
     fieldReport: m.fieldReport ?? '',

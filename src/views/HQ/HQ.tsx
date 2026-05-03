@@ -9,6 +9,9 @@ export default function HQ() {
   const setView           = useStore(s => s.setView)
   const allTroopers       = useStore(s => s.troopers)
   const mission           = useStore(s => s.mission)
+  const missions          = useStore(s => s.missions)
+  const openBuilder       = useStore(s => s.openMissionBuilder)
+  const deleteMission     = useStore(s => s.deleteMission)
 
   const campaign = campaigns.find(c => c.id === currentCampaignId) ?? null
 
@@ -127,6 +130,53 @@ export default function HQ() {
           </button>
         </div>
       )}
+
+      {/* Available Missions (blueprints) */}
+      <section className="bg-surface border border-border rounded-xl p-4 flex flex-col gap-3">
+        <div className="flex items-center justify-between">
+          <div className="text-[10px] uppercase tracking-widest text-muted">Available Missions</div>
+          <button
+            onClick={() => openBuilder(null)}
+            className="text-[11px] text-accent font-mono hover:underline"
+          >
+            + NEW MISSION
+          </button>
+        </div>
+
+        {missions.filter(m => m.status === 'blueprint').length === 0 ? (
+          <div className="text-[11px] text-muted font-mono">
+            No blueprints. Click "+ NEW MISSION" to plan one.
+          </div>
+        ) : (
+          <div className="flex flex-col gap-2">
+            {missions.filter(m => m.status === 'blueprint').map(m => (
+              <div key={m.id} className="bg-bg border border-border rounded-md p-3 flex items-center justify-between gap-2">
+                <div className="flex flex-col min-w-0">
+                  <div className="text-[12px] text-ink truncate">{m.name || 'Untitled'}</div>
+                  <div className="text-[10px] text-muted font-mono uppercase">
+                    {m.difficulty ?? '—'} · {m.objectiveCategory ?? '—'} · {(m.sectors?.length ?? 0)} sectors
+                  </div>
+                </div>
+                <div className="flex gap-1 flex-shrink-0">
+                  <button
+                    onClick={() => openBuilder(m.id)}
+                    className="px-2 py-1 text-[10px] border border-border text-muted hover:text-ink font-mono"
+                  >
+                    EDIT
+                  </button>
+                  <button
+                    onClick={() => { void deleteMission(m.id) }}
+                    className="px-2 py-1 text-[10px] border border-bad text-bad font-mono"
+                    aria-label={`Delete ${m.name}`}
+                  >
+                    ×
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
     </div>
   )
 }

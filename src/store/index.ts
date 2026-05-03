@@ -28,6 +28,7 @@ interface Store extends AppState {
   missions: Mission[]
   currentView: View
   diceTrayOpen: boolean
+  builderMissionId: string | null   // null = new blueprint; otherwise editing existing
 
   // Auth + campaign state
   authStatus: AuthStatus
@@ -67,6 +68,7 @@ interface Store extends AppState {
 
   setView: (v: View) => void
   setDiceTrayOpen: (open: boolean) => void
+  openMissionBuilder: (missionId: string | null) => void
 
   // Legacy (kept for test compatibility)
   importState: (raw: unknown) => void
@@ -277,6 +279,7 @@ export const useStore = create<Store>()(
     missions: [],
     currentView: 'barracks',
     diceTrayOpen: false,
+    builderMissionId: null,
 
     // Auth + campaign state
     authStatus: 'loading',
@@ -414,7 +417,7 @@ export const useStore = create<Store>()(
         diceHistory?: DiceRoll[]
         campaign?: Campaign
         squads?: Array<{ id: string; data: Record<string, unknown>; created_at?: string }>
-        missions?: Array<{ id: string; status: string; name: string; completed_at: string | null; created_at: string }>
+        missions?: Array<{ id: string; status: string; name: string; data?: Record<string, unknown>; completed_at: string | null; created_at: string }>
         currentMission?: { id: string; status: string; data: Record<string, unknown>; completed_at: string | null; created_at: string } | null
       }
 
@@ -456,11 +459,21 @@ export const useStore = create<Store>()(
             created_at: live.created_at,
           }
         }
+        const d = m.data ?? {}
         return {
           id: m.id,
           campaignId: id,
           status: m.status as Mission['status'],
           name: m.name,
+          description: typeof d['description'] === 'string' ? (d['description'] as string) : undefined,
+          difficulty: d['difficulty'] as Mission['difficulty'] | undefined,
+          objectiveCategory: d['objectiveCategory'] as Mission['objectiveCategory'] | undefined,
+          objectiveSubtype: d['objectiveSubtype'] as Mission['objectiveSubtype'] | undefined,
+          airspace: d['airspace'] as Mission['airspace'] | undefined,
+          insertion: d['insertion'] as Mission['insertion'] | undefined,
+          defaultWeather: d['defaultWeather'] as Mission['defaultWeather'] | undefined,
+          stealthStart: typeof d['stealthStart'] === 'boolean' ? (d['stealthStart'] as boolean) : undefined,
+          sectors: Array.isArray(d['sectors']) ? (d['sectors'] as MissionSector[]) : undefined,
           completed_at: m.completed_at,
           created_at: m.created_at,
         }
@@ -578,6 +591,7 @@ export const useStore = create<Store>()(
 
     setView: (v) => set({ currentView: v }),
     setDiceTrayOpen: (open) => set({ diceTrayOpen: open }),
+    openMissionBuilder: (missionId) => set({ builderMissionId: missionId, currentView: 'builder' }),
 
     // ── Sector actions ─────────────────────────────────────────────────────────
 

@@ -11,6 +11,7 @@ import Login from './views/Auth/Login'
 import Setup from './views/Auth/Setup'
 import HQ from './views/HQ/HQ'
 import Armoury from './views/Armoury/Armoury'
+import MissionBuilder from './views/MissionBuilder/MissionBuilder'
 
 const VIEW_COMPONENTS: Record<View, ComponentType> = {
   hq:       HQ,
@@ -18,9 +19,10 @@ const VIEW_COMPONENTS: Record<View, ComponentType> = {
   armoury:  Armoury,
   mission:  MissionBoard,
   settings: Settings,
+  builder:  MissionBuilder,
 }
 
-const CAMPAIGN_SUB_VIEWS: View[] = ['hq', 'barracks', 'armoury', 'mission']
+const CAMPAIGN_SUB_VIEWS: View[] = ['hq', 'barracks', 'armoury', 'mission', 'builder']
 
 const MOBILE_NAV: { id: View; label: string; glyph: string }[] = [
   { id: 'hq',       label: 'HQ',      glyph: '⌂' },
@@ -266,6 +268,7 @@ export default function App() {
                   {view === 'armoury'  && 'Armoury'}
                   {view === 'mission'  && 'Mission'}
                   {view === 'settings' && 'Settings'}
+                  {view === 'builder'  && 'Mission Builder'}
                 </div>
                 <div className="text-[11px] text-muted mt-0.5">
                   {view === 'barracks' && `${activeTrooperCount} troopers`}
