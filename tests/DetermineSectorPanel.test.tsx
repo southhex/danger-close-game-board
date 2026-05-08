@@ -5,12 +5,14 @@ import DetermineSectorPanel from '../src/views/MissionBoard/DetermineSectorPanel
 
 const TEST_SQUAD = 'sq-test'
 
-function makeMission(contentsState = 'undetermined' as const) {
+function makeMission(contentsState = 'undetermined' as const, rollFlags: Record<string, boolean> = {}) {
   return {
     id: 'm', name: 'M',
     sectors: [{
       id: 's1', name: 'Alpha', cover: 1, space: 1, tl: 2, weather: 0,
       status: 'active' as const, contentsState,
+      rollCover: true, rollSpace: true, rollContents: true,
+      ...rollFlags,
     }],
     activeSectorId: 's1',
     phase: 'determine_sector' as const,
