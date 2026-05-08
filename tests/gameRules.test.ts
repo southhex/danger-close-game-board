@@ -434,7 +434,16 @@ describe('isDeployed', () => {
 })
 
 // ─── Stage 7: Sector determination roll helpers ───────────────────────────────
-import { rollCover, rollSpace, rollWeather, rollSectorContents, rollBoon } from '../src/utils/gameRules'
+import { rollCover, rollSpace, rollTL, rollWeather, rollSectorContents, rollBoon } from '../src/utils/gameRules'
+
+describe('rollTL', () => {
+  it('1 → TL1', () => expect(rollTL(1)).toBe(1))
+  it('2 → TL1', () => expect(rollTL(2)).toBe(1))
+  it('3 → TL2', () => expect(rollTL(3)).toBe(2))
+  it('4 → TL2', () => expect(rollTL(4)).toBe(2))
+  it('5 → TL3', () => expect(rollTL(5)).toBe(3))
+  it('6 → TL4', () => expect(rollTL(6)).toBe(4))
+})
 
 describe('rollCover', () => {
   it('1 → 0', () => expect(rollCover(1)).toBe(0))

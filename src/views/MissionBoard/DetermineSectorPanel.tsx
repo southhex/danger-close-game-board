@@ -23,10 +23,13 @@ export default function DetermineSectorPanel() {
 
   const activeSector = mission?.sectors.find(s => s.id === mission.activeSectorId)
 
-  const needRollCover    = !!activeSector?.rollCover
-  const needRollSpace    = !!activeSector?.rollSpace
-  const needRollContents = !!activeSector?.rollContents
-  const needRollTL       = !!activeSector?.rollTL
+  // Old sectors (pre-feature) have contentsState='undetermined' but no explicit roll flags.
+  // Treat them as rollAll=true so the full interactive flow is preserved.
+  const isLegacy = activeSector?.contentsState === 'undetermined' && activeSector?.rollCover === undefined
+  const needRollCover    = isLegacy || !!activeSector?.rollCover
+  const needRollSpace    = isLegacy || !!activeSector?.rollSpace
+  const needRollContents = isLegacy || !!activeSector?.rollContents
+  const needRollTL       = isLegacy || !!activeSector?.rollTL
   const sectContentsType = activeSector?.contentsType ?? 'engagement'
 
   // Compute the first step we actually need to show

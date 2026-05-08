@@ -114,6 +114,18 @@ export default function SectorBlueprintCard({ sector, index, total, onChange, on
         </select>
         <button
           type="button"
+          onClick={() => onChange({
+            cover:   rollCover(),
+            space:   rollSpace(),
+            weather: rollWeather(),
+            ...(isTLVisible ? { tl: rollTL() } : {}),
+          })}
+          className="px-2 py-0.5 text-[10px] border border-border text-muted hover:text-warn hover:border-warn font-mono"
+          aria-label="Roll all"
+          title="Roll all — cover, space, weather, TL (if visible)"
+        >⬡ ALL</button>
+        <button
+          type="button"
           onClick={onDelete}
           className="px-2 py-1 text-[11px] border border-bad text-bad font-mono"
           aria-label="Delete sector"

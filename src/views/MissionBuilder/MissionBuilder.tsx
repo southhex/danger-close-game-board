@@ -134,13 +134,16 @@ function fromMission(m: Mission, fallbackAirspace: Airspace | undefined): FormSt
     stealthStart: m.stealthStart ?? false,
     sectors: m.sectors && m.sectors.length > 0
       ? m.sectors.map(s => {
-          const rollAll = s.contentsState === 'undetermined'
+          // If granular flags are already present, preserve them; only migrate from
+          // contentsState for old sectors that pre-date this feature.
+          const hasGranularFlags = s.rollCover !== undefined
+          const rollAll = !hasGranularFlags && s.contentsState === 'undetermined'
           return {
             ...s,
-            rollCover:    rollAll || false,
-            rollSpace:    rollAll || false,
-            rollContents: rollAll || false,
-            rollTL:       rollAll || false,
+            rollCover:    hasGranularFlags ? (s.rollCover    ?? false) : rollAll,
+            rollSpace:    hasGranularFlags ? (s.rollSpace    ?? false) : rollAll,
+            rollContents: hasGranularFlags ? (s.rollContents ?? false) : rollAll,
+            rollTL:       hasGranularFlags ? (s.rollTL       ?? false) : rollAll,
             contentsType: s.contentsType ?? 'engagement',
           }
         })
