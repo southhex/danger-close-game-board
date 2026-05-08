@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useStore } from '../../store'
-import { rollCover, rollSpace, rollSectorContents, rollBoon } from '../../utils/gameRules'
+import { rollCover, rollSpace, rollTL, rollSectorContents, rollBoon } from '../../utils/gameRules'
 import { rollDie } from '../../utils/dice'
 import BoonResolver from './BoonResolver'
 import type { BoonType, MissionDifficulty } from '../../types'
@@ -38,15 +38,15 @@ export default function DetermineSectorPanel() {
 
   function firstContentsStep(): Step {
     if (needRollContents) return 'contents'
-    if (!needRollContents && sectContentsType === 'engagement' && needRollTL) return 'tl_only'
+    if (sectContentsType === 'engagement' && needRollTL) return 'tl_only'
     return 'done'
   }
 
   const [step, setStep] = useState<Step>(() => firstStep())
   const [rolled, setRolled] = useState<Rolled>({})
 
-  // Fast-path: when all flags are false, fire store actions immediately on mount
-  // rather than waiting for a button press that will never come.
+  // When no flags require rolling, there are no buttons to click — fire store actions
+  // immediately on mount so the phase advances without user interaction.
   useEffect(() => {
     if (!activeSector) return
     if (needRollCover || needRollSpace || needRollContents || needRollTL) return
@@ -66,7 +66,7 @@ export default function DetermineSectorPanel() {
         weather: activeSector.weather as -2|-1|0|1,
       })
     }
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  }, []) // intentional: mount-once fast-path; deps are stable at mount and don't change
 
   if (!mission) return null
   if (!activeSector) return null
@@ -133,7 +133,7 @@ export default function DetermineSectorPanel() {
     const die = rollDie(6)
     const space = rollSpace(die)
     setRolled(r => ({ ...r, space }))
-    advanceToContentsOrDone({ space })
+    advanceToContentsOrDone({ cover: rolled.cover, space })
   }
 
   function handleRollContents() {
@@ -163,8 +163,7 @@ export default function DetermineSectorPanel() {
 
   function handleRollTLOnly() {
     const die = rollDie(6)
-    const result = rollSectorContents(die, difficulty)
-    const tl: 1|2|3|4 = result.type === 'tl' ? result.tl : (activeSector!.tl as 1|2|3|4)
+    const tl = rollTL(die)
     setRolled(r => ({ ...r, contentsType: 'tl', tl }))
     applyEngagementWithRolled({ tl })
     setStep('done')
@@ -197,7 +196,7 @@ export default function DetermineSectorPanel() {
   }
 
   const showCoverSection    = needRollCover
-  const showSpaceSection    = needRollSpace && (step === 'space' || pastSteps.has('space') || step === 'contents' || step === 'tl_only' || step === 'boon' || step === 'done')
+  const showSpaceSection    = needRollSpace && (step === 'space' || pastSteps.has('space'))
   const showContentsSection = needRollContents && (step === 'contents' || step === 'boon' || step === 'done' || rolled.contentsType != null)
   const showTLOnlySection   = !needRollContents && sectContentsType === 'engagement' && needRollTL && (step === 'tl_only' || step === 'done')
 

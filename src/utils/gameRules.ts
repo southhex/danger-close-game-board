@@ -307,6 +307,14 @@ export function weatherLabel(weather: -2 | -1 | 0 | 1): string {
 
 // ─── Sector determination roll tables (SRD ch.3) ────────────────────────────
 
+// 1d6 → TL: 1–2=TL1, 3–4=TL2, 5=TL3, 6=TL4 (standalone TL roll, not contents roll)
+export function rollTL(die: number): 1 | 2 | 3 | 4 {
+  if (die <= 2) return 1
+  if (die <= 4) return 2
+  if (die === 5) return 3
+  return 4
+}
+
 // 1d6 → cover: 1=0, 2–4=1, 5–6=2
 export function rollCover(die: number): 0 | 1 | 2 {
   if (die === 1) return 0
