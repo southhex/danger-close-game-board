@@ -84,6 +84,7 @@ export default function App() {
 
   const activeTrooperCount = allTroopers.filter(t => t.squadId !== null).length
   const currentCampaign    = campaigns.find(c => c.id === currentCampaignId) ?? null
+  const hasLiveMission     = !!currentCampaign?.currentMissionId
 
   const handleSelectCampaign = async (id: string) => {
     if (id === currentCampaignId) {
@@ -189,13 +190,15 @@ export default function App() {
                             currentView={view}
                             onClick={() => setView('armoury')}
                           />
-                          <SidebarSubItem
-                            label="Mission"
-                            viewId="mission"
-                            currentView={view}
-                            onClick={() => setView('mission')}
-                            live={mission !== null}
-                          />
+                          {hasLiveMission && (
+                            <SidebarSubItem
+                              label="Mission"
+                              viewId="mission"
+                              currentView={view}
+                              onClick={() => setView('mission')}
+                              live
+                            />
+                          )}
                         </div>
                       )}
                     </div>
@@ -294,7 +297,7 @@ export default function App() {
           {/* ── Mobile bottom nav ────────────────────────────────────────── */}
           {!isDesktop && (
             <nav className="flex bg-surface border-t border-border flex-shrink-0">
-              {MOBILE_NAV.map(n => {
+              {MOBILE_NAV.filter(n => n.id !== 'mission' || hasLiveMission).map(n => {
                 const isActive = view === n.id
                 return (
                   <button

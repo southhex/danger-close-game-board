@@ -5,7 +5,7 @@
 A browser-based React app that serves as a digital play surface for **Danger Close**, a solo TTRPG about infantry soldiers in war. Replaces nothing; stands alone as a self-contained tool that reduces friction for play.
 
 **Source of truth:** Danger Close SRD v0.96.6 — https://lars1808.github.io/DANGER-CLOSE-SRD/
-Design spec: `docs/superpowers/specs/2026-04-19-danger-close-play-aid-design.md`
+Design spec: `docs/superpowers/specs/2026-05-02-stage-2-design.md`
 
 ---
 
@@ -21,10 +21,11 @@ Design spec: `docs/superpowers/specs/2026-04-19-danger-close-play-aid-design.md`
 |---|---|
 | Framework | React 18 + Vite |
 | Styling | Tailwind CSS v3 (dark theme default) |
-| State | Zustand |
-| Persistence | `localStorage` (key: `danger-close-app-state`) + JSON export/import |
+| State | Zustand (frontend) |
+| Persistence | SQLite via `better-sqlite3` on the server; Zustand+sync to REST API |
+| Auth | Session cookie (argon2 password hash) |
+| Backend | Node.js + Hono, `server/` directory |
 | Font | `Share Tech Mono` (Google Fonts) |
-| No backend | All data lives in browser or exported files |
 
 ---
 
@@ -32,36 +33,56 @@ Design spec: `docs/superpowers/specs/2026-04-19-danger-close-play-aid-design.md`
 
 ```
 src/
-  components/       # Shared UI primitives — barrel export via index.ts
-    PipTracker, Dropdown, Modal, ConfirmDialog, GearPopover, StatusBadge, Stepper, TextPopover
+  api/
+    client.ts     # Typed wrappers for all REST endpoints
+    sync.ts       # Debounced PUT for trooper/dice + mission state sync
+    bootstrap.ts  # Session bootstrap
+  components/     # Shared UI primitives — barrel export via index.ts
+    PipTracker, Dropdown, Modal, ConfirmDialog, GearPopover, StatusBadge, Stepper, TextPopover, Toast
   views/
-    Barracks/       # TrooperCard, TrooperGrid (inlined), TrooperEditor, Barracks
-    MissionBoard/   # Phase-aware board; SectorChainStrip, SectorEditorModal,
-                    # SectorMomentumPanel, MissionNotes, TrooperCardDock,
-                    # TrooperMissionCard, AdvanceRollPanel, MobilityCheckPhase, MissionBoard,
-                    # EngagementPanel, IntentStep, OffenseStep, DefenseStep,
-                    # MomentumStep, EnemyTacticsStep,
-                    # MoveModal, CoveringFireModal, GearActionModal,
-                    # HardTargetPanel, AttachedForcePanel, CatchBreathPanel
-    DiceTray/       # DiceControls, MobilityCheckRoll, RollHistory, DiceTray (modal)
-    Settings/       # ExportImport, Settings
-  store/index.ts    # Zustand store with persist; version 2; v0→v1→v2 migration
-  data/gear.ts      # 21-item static gear catalogue (3 armor, 3 weapons, 8 SW, 7 SE)
-  data/tags.ts      # 4 SRD tags + tagByName()
+    Auth/         # Login, Setup
+    Barracks/     # Barracks, TrooperCard, TrooperEditor, SquadEditor
+    HQ/           # HQ, CampaignOverviewCard, MissionSummaryCard, FieldReportPanel
+    MissionBoard/ # Phase-aware board; SectorChainStrip, SectorEditorModal,
+                  # SectorMomentumPanel, MissionNotes, TrooperCardDock,
+                  # TrooperMissionCard, AdvanceRollPanel, MobilityCheckPhase,
+                  # EngagementPanel, IntentStep, OffenseStep, DefenseStep,
+                  # MomentumStep, EnemyTacticsStep,
+                  # MoveModal, CoveringFireModal, GearActionModal,
+                  # HardTargetPanel, AttachedForcePanel, CatchBreathPanel,
+                  # DetermineSectorPanel, BoonResolver, AddSectorModal,
+                  # EndMissionModal, DeployConfirmModal, MissionCompletePanel
+    MissionBuilder/ # MissionBuilder, SectorBlueprintCard
+    Armoury/      # Armoury, GearGrid, PurchaseConfirmDialog
+    DiceTray/     # DiceControls, MobilityCheckRoll, RollHistory, DiceTray (modal)
+    Settings/     # ExportImport, Settings
+  store/index.ts  # Zustand store — squads, missions, troopers, campaigns, ui state
+  data/gear.ts    # 21-item static gear catalogue (3 armor, 3 weapons, 8 SW, 7 SE)
+  data/tags.ts    # 4 SRD tags + tagByName()
   hooks/
     useMediaQuery.ts
   utils/
-    gameRules.ts    # Pure functions — all game logic; advance rules + engagement calc
-    dice.ts         # rollDie, rollDice
-    id.ts           # newId() — crypto.randomUUID() with fallback
-  types.ts          # All TS interfaces — includes EngagementState, MissionSector (id/status),
-                    # HardTarget, AttachedForce, TrooperIntent, OffenseResult, DefenseResult, EnemyTactic
-  App.tsx           # Shell: desktop sidebar + mobile bottom tabs + DiceTray modal
+    gameRules.ts  # Pure functions — all game logic; advance + engagement + sector rolls
+    dice.ts       # rollDie, rollDice
+    id.ts         # newId() — crypto.randomUUID() with fallback
+    tokens.ts     # Auth token helpers
+  types.ts        # All TS interfaces (see Key Data Models below)
+  App.tsx         # Shell: desktop sidebar + mobile bottom tabs + DiceTray modal
+server/
+  src/
+    db.ts                 # SQLite init + migrations
+    index.ts              # Hono app mount
+    routes/
+      auth.ts, bootstrap.ts, campaigns.ts, squads.ts, missions.ts, req.ts
+    migrations/
+      001_initial.sql
+      002_stage2.sql      # squads + missions tables, campaign REQ/airspace columns
+      003_drop_current_mission.sql
 docs/
   superpowers/
     specs/          # Design docs
     plans/          # Implementation plans
-tests/              # Vitest unit tests (gameRules 79, store 10, dice 2 = 91 total)
+tests/              # Vitest unit tests (187 total — gameRules, store, component tests)
 ```
 
 ---
@@ -87,12 +108,28 @@ Accent orange:    #d45f27   wounded
 
 Defined in `src/types.ts`. The SRD is the authority on all mechanics.
 
-- `Trooper` — core persistent unit; permanent fields + mission-state fields including `special_weapon_uses` / `special_gear_uses`
+- `Trooper` — persistent unit; `squadId: string | null`, `recovering: boolean`, `wasBleedingOut: boolean`; mission-state fields including `special_weapon_uses` / `special_gear_uses`
+- `Squad` — `{ id, campaignId, name, callsign?, sergeantId, perks[], notes }`; max 5 members
 - `GearItem` — static bundled data; includes `mobility_cost`, `reqcost`, `max_uses`, full `properties` text
-- `MissionSector` — `{ id, name, cover, space, tl, weather, status: 'pending'|'active'|'cleared' }`
-- `MissionState` — `{ id, name, sectors: MissionSector[], activeSectorId, momentum, advance_rolls, stealth, notes, phase, engagement: EngagementState | null }`
+- `Mission` — top-level entity; `status: 'blueprint'|'live'|'completed'`; `objective`, `insertion`, `stealthStart`, `sectors?`, `squadId`, `fieldReport`, `state?: MissionState`
+- `MissionSector` — `{ id, name, cover, space, tl, weather, status, description?, role?, contentsState?, boon?, empty? }`
+- `MissionState` — live runner state: `{ sectors, activeSectorId, momentum, advance_rolls, stealth, notes, phase, engagement, nextAdvanceBonus?, pendingAttachedForces? }`
 - `EngagementState` — full wizard state: step, pressure, hardTargets, attachedForces, intents, offenseResult, defenseResults, nextExchangeModifiers, etc.
-- `AppState` — root localStorage schema (`troopers`, `mission`, `diceHistory`)
+- `Campaign` — `{ id, name, description, defaultAirspace, reqEnabled, req, currentMissionId }`
+- `AppState` — root store schema: `{ campaigns, currentCampaignId, squads, missions, troopers, mission, diceHistory, … }`
+
+---
+
+## Key Flows
+
+### Deploy flow
+HQ Available Missions card → "DEPLOY" → `DeployConfirmModal` (squad picker, recovering blockers, sergeant warning) → `store.deployMission(missionId, squadId)` → server sets `campaigns.current_mission_id`, builds `MissionState` from blueprint, navigates to 'mission' view.
+
+### DetermineSector phase
+Sectors with `contentsState='undetermined'` trigger `phase='determine_sector'` on entry → `DetermineSectorPanel` rolls Cover/Space/Weather/Contents → branches: TL+advance (normal flow), Boon (`BoonResolver`), or Nothing (straight to catch_breath).
+
+### After-mission flow
+CatchBreathPanel "END MISSION" → `EndMissionModal` (outcome selector, field-report textarea, survivor preview, REQ summary) → `store.completeMission` → server computes recovering flags + REQ → clears `currentMissionId`, navigates to 'hq'.
 
 ---
 
@@ -102,9 +139,9 @@ All in `src/utils/gameRules.ts` — never inlined in components.
 
 **Advance roll modifier:**
 ```
-modifier = −floor(advance_rolls / 3) − wound_count + weather + (−sector.tl) + (stealth ? 3 : 0) + assault_ammo + drone_bonus
+modifier = −floor(advance_rolls / 3) − wound_count + weather + (−sector.tl) + (stealth ? 3 : 0) + assault_ammo + drone_bonus + nextAdvanceBonus
 ```
-`drone_bonus` = 1 if any active trooper carries Drone Gear (does not stack), else 0.
+`drone_bonus` = 1 if any deployed trooper carries Drone Gear (does not stack), else 0.
 
 **Advance result table (SRD v0.96.6):**
 ```
@@ -149,6 +186,8 @@ Weapon modifiers: Carbine ±1 by space when Engaged; Marksman Rifle ±1 by cover
 
 **Enemy tactics** (1d6 + TL): 2–4=none, 5=reposition, 6=scatter, 7=pinned_down, 8=encircle, 9=push_forward, 10+=fall_back.
 
+**Recovering:** auto-set when trooper ends mission Wounded or was ever BleedingOut (`wasBleedingOut=true`). Auto-cleared on next deploy for troopers not in the deployed squad. Manual override allowed.
+
 ---
 
 ## UI Conventions
@@ -156,9 +195,10 @@ Weapon modifiers: Carbine ±1 by space when Engaged; Marksman Rifle ±1 by cover
 - Monospace font everywhere. Labels uppercase with letter-spacing.
 - Minimal size hierarchy — use weight and colour for emphasis, not font size.
 - Mobile-first. Mission board trooper cards scroll horizontally with snap, never wrap.
-- State changes are immediate (no submit patterns) except: Trooper Editor saves, and destructive confirmations (mission reset, delete trooper, import overwrite, apply advance result, sector switch mid-engagement).
+- State changes are immediate (no submit patterns) except: Trooper Editor saves, SquadEditor saves, and destructive confirmations (mission reset, delete trooper, import overwrite, apply advance result, sector switch mid-engagement).
 - No gradients, no decorative imagery.
 - `ConfirmDialog` tones: `tone="danger"` (red) for DELETE/RESET/OVERWRITE; `tone="default"` (amber) for apply/confirm actions.
+- Nav: sidebar/bottom nav shows Mission entry only when `currentMissionId` is set. Builder is a non-nav route — reached via HQ "+ NEW MISSION" / "EDIT" only.
 
 ---
 
@@ -168,26 +208,28 @@ Weapon modifiers: Carbine ±1 by space when Engaged; Marksman Rifle ±1 by cover
 
 ```ts
 // ❌ WRONG — creates new array on every render → infinite loop
-const troopers = useStore(s => s.troopers.filter(t => t.active))
+const troopers = useStore(s => s.troopers.filter(t => t.squadId !== null))
 
 // ✅ CORRECT — select stable reference, filter in component body
 const allTroopers = useStore(s => s.troopers)
-const troopers = allTroopers.filter(t => t.active)
+const troopers = allTroopers.filter(t => t.squadId !== null)
 ```
 
 **Never use `useStore.getState()` inside React components.** Use selector hooks: `useStore(s => s.action)`.
 
+**`isDeployed(t, mission)` is the sole deployment signal.** Returns `t.squadId === mission.squadId` when mission is live. Never check `t.active` (field removed in Stage 2.3).
+
 **Trooper Editor save:** Only reset `special_weapon_uses` / `special_gear_uses` when the gear selection actually changed — preserves in-mission uses on unrelated edits.
 
-**Sector chip interaction:** chip body activates the sector via `setActiveSector` (which resets `phase` to `'advance'`, clears `engagement`, zeroes `advance_rolls`, and demotes the previously-active sector to `'pending'`). The small `✎` button on each chip opens the editor. SectorChainStrip prompts a confirmation dialog before switching when an engagement or advance roll is in progress.
+**Sector chip interaction:** chip body activates the sector via `setActiveSector` (which sets phase to `'determine_sector'` for undetermined sectors or `'advance'` for predetermined, clears `engagement`, zeroes `advance_rolls`, and demotes the previously-active sector to `'pending'`). The small `✎` button opens the editor. `SectorChainStrip` prompts a confirmation dialog before switching when an engagement or advance roll is in progress.
 
-**`resetMission` resets troopers too.** It calls `resetTrooperForMission` on all active troopers (status/grit/ammo/positions/uses). Don't add separate trooper-state-reset calls in the Settings UI.
+**`resetMission` resets troopers too.** It calls `resetTrooperForMission` on all deployed troopers (status/grit/ammo/positions/uses). Don't add separate trooper-state-reset calls in the Settings UI.
 
 ---
 
-## v1 Out of Scope
+## Stage 3+ Out of Scope
 
-Campaign board, mission log, enemy tracking, multiplayer, cloud storage, undo/redo, print view.
+Campaign board, free-roam objective type, hex topology, procedural mission generation, Bonds, app themes, cross-campaign stats, undo/redo, print view.
 
 ---
 
@@ -198,3 +240,13 @@ Campaign board, mission log, enemy tracking, multiplayer, cloud storage, undo/re
 | 0 | Initial — `perk: string`, no `tag`, `grit_max`, `ammo_max` |
 | 1 | `perks: Perk[]`, `tag`, `grit_max`, `ammo_max` on Trooper |
 | 2 | `mission.sector` → `mission.sectors[]` + `activeSectorId`; `phase`; `engagement` |
+
+---
+
+## Server Database Migrations
+
+| File | Changes |
+|---|---|
+| `001_initial.sql` | users, sessions, campaigns, troopers, dice_rolls |
+| `002_stage2.sql` | squads + missions tables; campaigns gains defaultAirspace, reqEnabled, req, currentMissionId |
+| `003_drop_current_mission.sql` | drops legacy campaigns.current_mission JSON column |
