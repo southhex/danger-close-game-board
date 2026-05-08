@@ -112,7 +112,7 @@ Defined in `src/types.ts`. The SRD is the authority on all mechanics.
 - `Squad` — `{ id, campaignId, name, callsign?, sergeantId, perks[], notes }`; max 5 members
 - `GearItem` — static bundled data; includes `mobility_cost`, `reqcost`, `max_uses`, full `properties` text
 - `Mission` — top-level entity; `status: 'blueprint'|'live'|'completed'`; `objective`, `insertion`, `stealthStart`, `sectors?`, `squadId`, `fieldReport`, `state?: MissionState`
-- `MissionSector` — `{ id, name, cover, space, tl, weather, status, description?, role?, contentsState?, boon?, empty? }`
+- `MissionSector` — `{ id, name, cover, space, tl, weather, status, description?, role?, contentsState?, boon?, empty?, rollCover?, rollSpace?, rollContents?, rollTL?, contentsType? }`. `contentsState` is derived on blueprint save from the roll flags — never set directly in the builder. Old sectors without roll flags are treated as legacy-undetermined in `DetermineSectorPanel` (full roll flow preserved).
 - `MissionState` — live runner state: `{ sectors, activeSectorId, momentum, advance_rolls, stealth, notes, phase, engagement, nextAdvanceBonus?, pendingAttachedForces? }`
 - `EngagementState` — full wizard state: step, pressure, hardTargets, attachedForces, intents, offenseResult, defenseResults, nextExchangeModifiers, etc.
 - `Campaign` — `{ id, name, description, defaultAirspace, reqEnabled, req, currentMissionId }`
@@ -126,7 +126,7 @@ Defined in `src/types.ts`. The SRD is the authority on all mechanics.
 HQ Available Missions card → "DEPLOY" → `DeployConfirmModal` (squad picker, recovering blockers, sergeant warning) → `store.deployMission(missionId, squadId)` → server sets `campaigns.current_mission_id`, builds `MissionState` from blueprint, navigates to 'mission' view.
 
 ### DetermineSector phase
-Sectors with `contentsState='undetermined'` trigger `phase='determine_sector'` on entry → `DetermineSectorPanel` rolls Cover/Space/Weather/Contents → branches: TL+advance (normal flow), Boon (`BoonResolver`), or Nothing (straight to catch_breath).
+Sectors with `contentsState='undetermined'` trigger `phase='determine_sector'` on entry → `DetermineSectorPanel`. Each step (Cover/Space/Contents/TL) is conditional on its roll flag (`rollCover`, `rollSpace`, `rollContents`, `rollTL`). Predetermined values are used directly. If all flags are false, the panel fires `applySectorEmpty`/`applySectorRoll` immediately via `useEffect`. Old sectors without explicit flags get the full roll flow (legacy compat). Branches: TL+advance, Boon (`BoonResolver`), or Nothing (catch_breath).
 
 ### After-mission flow
 CatchBreathPanel "END MISSION" → `EndMissionModal` (outcome selector, field-report textarea, survivor preview, REQ summary) → `store.completeMission` → server computes recovering flags + REQ → clears `currentMissionId`, navigates to 'hq'.
