@@ -151,6 +151,12 @@ export interface MissionSector {
   contentsState?: SectorContentsState
   boon?: SectorBoon
   empty?: boolean
+  // Granular roll-on-entry flags (blueprint builder)
+  rollCover?:    boolean
+  rollSpace?:    boolean
+  rollContents?: boolean
+  rollTL?:       boolean
+  contentsType?: 'engagement' | 'boon' | 'empty'
 }
 
 export type MissionPhase =
