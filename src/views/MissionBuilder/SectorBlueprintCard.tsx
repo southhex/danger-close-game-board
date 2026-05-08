@@ -141,6 +141,7 @@ export default function SectorBlueprintCard({ sector, index, total, onChange, on
               <button
                 type="button"
                 key={ct}
+                disabled={!!sector.rollContents}
                 onClick={() => onChange({ contentsType: ct })}
                 className={`px-2 py-0.5 text-[10px] border font-mono uppercase ${
                   contentsType === ct ? 'border-warn text-warn' : 'border-border text-muted'
@@ -174,6 +175,7 @@ export default function SectorBlueprintCard({ sector, index, total, onChange, on
                 <button
                   type="button"
                   key={v}
+                  disabled={!!sector.rollCover}
                   onClick={() => onChange({ cover: v })}
                   className={`px-2 py-0.5 text-[10px] border font-mono ${
                     sector.cover === v ? 'border-warn text-warn' : 'border-border text-muted'
@@ -208,6 +210,7 @@ export default function SectorBlueprintCard({ sector, index, total, onChange, on
                 <button
                   type="button"
                   key={v}
+                  disabled={!!sector.rollSpace}
                   onClick={() => onChange({ space: v })}
                   className={`px-2 py-0.5 text-[10px] border font-mono ${
                     sector.space === v ? 'border-warn text-warn' : 'border-border text-muted'
@@ -242,6 +245,7 @@ export default function SectorBlueprintCard({ sector, index, total, onChange, on
                 <button
                   type="button"
                   key={v}
+                  disabled={!!sector.rollTL}
                   onClick={() => onChange({ tl: v })}
                   className={`px-2 py-0.5 text-[10px] border font-mono ${
                     sector.tl === v ? 'border-warn text-warn' : 'border-border text-muted'
