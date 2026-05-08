@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useStore } from '../../store'
 import { rollCover, rollSpace, rollSectorContents, rollBoon } from '../../utils/gameRules'
 import { rollDie } from '../../utils/dice'
@@ -44,6 +44,29 @@ export default function DetermineSectorPanel() {
 
   const [step, setStep] = useState<Step>(() => firstStep())
   const [rolled, setRolled] = useState<Rolled>({})
+
+  // Fast-path: when all flags are false, fire store actions immediately on mount
+  // rather than waiting for a button press that will never come.
+  useEffect(() => {
+    if (!activeSector) return
+    if (needRollCover || needRollSpace || needRollContents || needRollTL) return
+    const id = activeSector.id
+    const ct = activeSector.contentsType ?? 'engagement'
+    if (ct === 'empty') {
+      applySectorEmpty(id)
+    } else if (ct === 'boon') {
+      const boonDie = rollDie(6)
+      const boonType = rollBoon(boonDie)
+      applySectorBoon(id, { type: boonType })
+    } else {
+      applySectorRoll(id, {
+        cover:   activeSector.cover   as 0|1|2,
+        space:   activeSector.space   as 0|1|2,
+        tl:      activeSector.tl      as 1|2|3|4,
+        weather: activeSector.weather as -2|-1|0|1,
+      })
+    }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!mission) return null
   if (!activeSector) return null

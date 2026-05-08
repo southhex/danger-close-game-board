@@ -79,4 +79,46 @@ describe('DetermineSectorPanel', () => {
     const { container } = render(<DetermineSectorPanel />)
     expect(container.firstChild).toBeNull()
   })
+
+  it('predetermined empty sector calls applySectorEmpty immediately on mount', () => {
+    useStore.setState({
+      mission: makeMission('predetermined', {
+        rollCover: false, rollSpace: false, rollContents: false, rollTL: false,
+        contentsType: 'empty',
+      }),
+    })
+    // Panel initialises and takes the fast path — no roll buttons shown
+    render(<DetermineSectorPanel />)
+    const m = useStore.getState().mission!
+    expect(m.phase).toBe('catch_breath')
+    expect(m.sectors[0].empty).toBe(true)
+  })
+
+  it('predetermined engagement (all flags false) calls applySectorRoll immediately on mount', () => {
+    useStore.setState({
+      mission: makeMission('predetermined', {
+        rollCover: false, rollSpace: false, rollContents: false, rollTL: false,
+        contentsType: 'engagement',
+      }),
+    })
+    render(<DetermineSectorPanel />)
+    const m = useStore.getState().mission!
+    expect(m.phase).toBe('advance')
+    expect(m.sectors[0].contentsState).toBe('rolled')
+  })
+
+  it('skips cover/space steps and shows only TL roll when rollTL is the only flag', () => {
+    useStore.setState({
+      mission: makeMission('undetermined', {
+        rollCover: false, rollSpace: false, rollContents: false, rollTL: true,
+        contentsType: 'engagement',
+      }),
+    })
+    render(<DetermineSectorPanel />)
+    // Cover and space roll buttons should not be present — only TL roll
+    const rollButtons = screen.queryAllByText('ROLL 1D6')
+    expect(rollButtons.length).toBeGreaterThan(0)
+    expect(screen.queryByText(/COVER/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/SPACE/)).not.toBeInTheDocument()
+  })
 })
