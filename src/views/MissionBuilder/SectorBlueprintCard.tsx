@@ -52,12 +52,30 @@ interface Props {
   onDelete: () => void
 }
 
-export default function SectorBlueprintCard({ sector, index, total, onChange, onMove, onDelete }: Props) {
-  const determineNow = sector.contentsState !== 'undetermined'
+interface RollToggleProps {
+  active: boolean
+  onClick: () => void
+  label: string
+}
 
-  function setDetermineNow(v: boolean) {
-    onChange({ contentsState: v ? 'predetermined' : 'undetermined' })
-  }
+function RollToggle({ active, onClick, label }: RollToggleProps) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`px-1.5 py-0.5 text-[10px] border font-mono font-bold ${
+        active ? 'border-warn text-warn' : 'border-border text-muted'
+      }`}
+      aria-label={label}
+    >?</button>
+  )
+}
+
+export default function SectorBlueprintCard({ sector, index, total, onChange, onMove, onDelete }: Props) {
+  const contentsType = sector.contentsType ?? 'engagement'
+  const isEmpty = !sector.rollContents && contentsType === 'empty'
+  const isTLVisible = sector.rollContents === true || (!sector.rollContents && contentsType === 'engagement')
+  const showCoverSpace = !isEmpty
 
   return (
     <div className="bg-bg border border-border rounded-md p-3 flex flex-col gap-3">
@@ -114,19 +132,133 @@ export default function SectorBlueprintCard({ sector, index, total, onChange, on
         />
       </div>
 
-      {/* DETERMINE NOW toggle */}
-      <label className="flex items-center gap-2 text-[11px] text-ink font-mono cursor-pointer select-none">
-        <input
-          type="checkbox"
-          checked={determineNow}
-          onChange={e => setDetermineNow(e.target.checked)}
-          className="accent-warn"
-        />
-        <span>DETERMINE NOW</span>
-        {!determineNow && <span className="text-subtle">— rolled on entry</span>}
-      </label>
+      {/* Contents type row */}
+      <div>
+        <div className="lbl text-[10px] mb-1">CONTENTS</div>
+        <div className="flex gap-1 items-center">
+          <div className={`flex gap-1 ${sector.rollContents ? 'opacity-40' : ''}`}>
+            {(['engagement', 'boon', 'empty'] as const).map(ct => (
+              <button
+                type="button"
+                key={ct}
+                onClick={() => onChange({ contentsType: ct })}
+                className={`px-2 py-0.5 text-[10px] border font-mono uppercase ${
+                  contentsType === ct ? 'border-warn text-warn' : 'border-border text-muted'
+                }`}
+              >{ct}</button>
+            ))}
+          </div>
+          <RollToggle
+            active={!!sector.rollContents}
+            onClick={() => onChange({ rollContents: !sector.rollContents })}
+            label="Roll contents on entry"
+          />
+        </div>
+      </div>
 
-      {/* Weather (always shown) */}
+      {/* Cover row */}
+      {showCoverSpace && (
+        <div>
+          <div className="lbl text-[10px] mb-1 flex items-center gap-2">
+            <span>COVER</span>
+            <button
+              type="button"
+              onClick={() => onChange({ cover: rollCover() })}
+              className="text-[10px] text-muted hover:text-warn font-mono"
+              aria-label="Roll cover"
+            >⬡</button>
+          </div>
+          <div className="flex gap-1 items-center">
+            <div className={`flex gap-1 ${sector.rollCover ? 'opacity-40' : ''}`}>
+              {([0, 1, 2] as const).map(v => (
+                <button
+                  type="button"
+                  key={v}
+                  onClick={() => onChange({ cover: v })}
+                  className={`px-2 py-0.5 text-[10px] border font-mono ${
+                    sector.cover === v ? 'border-warn text-warn' : 'border-border text-muted'
+                  }`}
+                >{v}</button>
+              ))}
+            </div>
+            <RollToggle
+              active={!!sector.rollCover}
+              onClick={() => onChange({ rollCover: !sector.rollCover })}
+              label="Roll cover on entry"
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Space row */}
+      {showCoverSpace && (
+        <div>
+          <div className="lbl text-[10px] mb-1 flex items-center gap-2">
+            <span>SPACE</span>
+            <button
+              type="button"
+              onClick={() => onChange({ space: rollSpace() })}
+              className="text-[10px] text-muted hover:text-warn font-mono"
+              aria-label="Roll space"
+            >⬡</button>
+          </div>
+          <div className="flex gap-1 items-center">
+            <div className={`flex gap-1 ${sector.rollSpace ? 'opacity-40' : ''}`}>
+              {([0, 1, 2] as const).map(v => (
+                <button
+                  type="button"
+                  key={v}
+                  onClick={() => onChange({ space: v })}
+                  className={`px-2 py-0.5 text-[10px] border font-mono ${
+                    sector.space === v ? 'border-warn text-warn' : 'border-border text-muted'
+                  }`}
+                >{v}</button>
+              ))}
+            </div>
+            <RollToggle
+              active={!!sector.rollSpace}
+              onClick={() => onChange({ rollSpace: !sector.rollSpace })}
+              label="Roll space on entry"
+            />
+          </div>
+        </div>
+      )}
+
+      {/* TL row */}
+      {isTLVisible && (
+        <div>
+          <div className="lbl text-[10px] mb-1 flex items-center gap-2">
+            <span>TL</span>
+            <button
+              type="button"
+              onClick={() => onChange({ tl: rollTL() })}
+              className="text-[10px] text-muted hover:text-warn font-mono"
+              aria-label="Roll TL"
+            >⬡</button>
+          </div>
+          <div className="flex gap-1 items-center">
+            <div className={`flex gap-1 ${sector.rollTL ? 'opacity-40' : ''}`}>
+              {([1, 2, 3, 4] as const).map(v => (
+                <button
+                  type="button"
+                  key={v}
+                  onClick={() => onChange({ tl: v })}
+                  className={`px-2 py-0.5 text-[10px] border font-mono ${
+                    sector.tl === v ? 'border-warn text-warn' : 'border-border text-muted'
+                  }`}
+                >{v}</button>
+              ))}
+            </div>
+            <RollToggle
+              active={!!sector.rollTL}
+              onClick={() => onChange({ rollTL: !sector.rollTL })}
+              label="Roll TL on entry"
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Weather (always shown, no ? button) */}
       <div>
         <div className="lbl text-[10px] mb-1 flex items-center gap-2">
           <span>WEATHER</span>
@@ -145,75 +277,6 @@ export default function SectorBlueprintCard({ sector, index, total, onChange, on
           {WEATHER_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
         </select>
       </div>
-
-      {/* Cover/Space/TL — only when determined */}
-      {determineNow && (
-        <div className="grid grid-cols-3 gap-2">
-          <div>
-            <div className="lbl text-[10px] mb-1 flex items-center gap-2">
-              <span>COVER</span>
-              <button
-                type="button"
-                onClick={() => onChange({ cover: rollCover() })}
-                className="text-[10px] text-muted hover:text-warn font-mono"
-                aria-label="Roll cover"
-              >⬡</button>
-            </div>
-            <div className="flex gap-1">
-              {([0, 1, 2] as const).map(v => (
-                <button
-                  type="button"
-                  key={v}
-                  onClick={() => onChange({ cover: v })}
-                  className={`px-2 py-0.5 text-[10px] border font-mono ${sector.cover === v ? 'border-warn text-warn' : 'border-border text-muted'}`}
-                >{v}</button>
-              ))}
-            </div>
-          </div>
-          <div>
-            <div className="lbl text-[10px] mb-1 flex items-center gap-2">
-              <span>SPACE</span>
-              <button
-                type="button"
-                onClick={() => onChange({ space: rollSpace() })}
-                className="text-[10px] text-muted hover:text-warn font-mono"
-                aria-label="Roll space"
-              >⬡</button>
-            </div>
-            <div className="flex gap-1">
-              {([0, 1, 2] as const).map(v => (
-                <button
-                  type="button"
-                  key={v}
-                  onClick={() => onChange({ space: v })}
-                  className={`px-2 py-0.5 text-[10px] border font-mono ${sector.space === v ? 'border-warn text-warn' : 'border-border text-muted'}`}
-                >{v}</button>
-              ))}
-            </div>
-          </div>
-          <div>
-            <div className="lbl text-[10px] mb-1 flex items-center gap-2">
-              <span>TL</span>
-              <button
-                type="button"
-                onClick={() => onChange({ tl: rollTL() })}
-                className="text-[10px] text-muted hover:text-warn font-mono"
-                aria-label="Roll TL"
-              >⬡</button>
-            </div>
-            <div className="flex gap-1">
-              {([1, 2, 3, 4] as const).map(v => (
-                <button
-                  type="button"
-                  key={v}
-                  onClick={() => onChange({ tl: v })}
-                  className={`px-2 py-0.5 text-[10px] border font-mono ${sector.tl === v ? 'border-warn text-warn' : 'border-border text-muted'}`}
-                >{v}</button>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   )
 }
