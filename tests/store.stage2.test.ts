@@ -37,6 +37,7 @@ vi.mock('../src/api/client', async () => {
       mission: { id: missionId, campaignId: 'c1', status: 'completed' as const, name: 'Op' },
       reqAwarded: 2,
       campaignReq: 5,
+      recoveringIds: ['t2'],
     })),
     patchReqApi: vi.fn(async (id: string, req: number) => ({ id, req })),
     spendReqApi: vi.fn(async (id: string, body: { amount: number; trooperId: string; gearChange: { slot: string; name: string | null } }) => ({
@@ -153,6 +154,75 @@ describe('store stage 2 mutators', () => {
       useStore.getState().spendReq(5, 't1', { slot: 'weapon', name: 'Sniper Rifle' }),
     ).rejects.toThrow(/Insufficient/)
     expect(api.spendReqApi).not.toHaveBeenCalled()
+  })
+
+  it('completeMission applies recovering flags and grit refill to deployed survivors', async () => {
+    const t = (id: string, opts: { status: string; grit_max: number; squadId: string | null }) => ({
+      id, name: 'A', fullname: '', callsign: '',
+      perkpoints: 0, mobility: 4, armor: '', weapon: '', special_weapon: '', special_gear: '',
+      tag: '', perks: [], notes: '', squadId: opts.squadId, recovering: false, wasBleedingOut: false,
+      grit: 1, grit_max: opts.grit_max, ammo: 3, ammo_max: 3,
+      status: opts.status, offpos: 'engaged' as const, defpos: 'incover' as const,
+      suppressed: false, def_modifier: 0, special_weapon_uses: -1, special_gear_uses: -1,
+    })
+    const liveMission = {
+      id: 'm1', name: 'Op',
+      sectors: [{ id: 's1', name: 'Alpha', cover: 1 as const, space: 1 as const, tl: 2 as const, weather: 0 as const, status: 'active' as const }],
+      activeSectorId: 's1', phase: 'catch_breath' as const, engagement: null,
+      momentum: 1, advance_rolls: 1, stealth: false, notes: '',
+      transitionFromSectorId: null, squadId: 'sq1',
+    }
+    useStore.setState({
+      missions: [{ id: 'm1', campaignId: 'c1', status: 'live' as const, name: 'Op', squadId: 'sq1' }],
+      campaigns: [{ id: 'c1', name: 'Camp', description: '', created_at: '', req: 3, reqEnabled: true, currentMissionId: 'm1' }],
+      mission: liveMission,
+      troopers: [
+        t('t1', { status: 'ok', grit_max: 2, squadId: 'sq1' }),
+        t('t2', { status: 'wounded', grit_max: 3, squadId: 'sq1' }),  // will be recovering
+        t('t3', { status: 'dead', grit_max: 3, squadId: 'sq1' }),
+        t('t4', { status: 'ok', grit_max: 2, squadId: null }),         // different squad, skipped
+      ],
+    })
+    await useStore.getState().completeMission('m1', { fieldReport: 'test', outcome: 'victory' })
+    const state = useStore.getState()
+    const t1 = state.troopers.find(x => x.id === 't1')!
+    const t2 = state.troopers.find(x => x.id === 't2')!
+    const t3 = state.troopers.find(x => x.id === 't3')!
+    const t4 = state.troopers.find(x => x.id === 't4')!
+    // t1: ok survivor — grit refilled to min(grit_max+1, 3) = min(3,3) = 3
+    expect(t1.grit).toBe(3)
+    expect(t1.recovering).toBe(false)
+    // t2: in recoveringIds from mock → recovering=true, grit refilled
+    expect(t2.recovering).toBe(true)
+    expect(t2.grit).toBe(3)   // min(3+1,3) = 3
+    // t3: dead — not touched
+    expect(t3.grit).toBe(1)
+    // t4: not in squad — not touched
+    expect(t4.grit).toBe(1)
+  })
+
+  it('deployMission auto-clears recovering for troopers not in the deploying squad', async () => {
+    const t = (id: string, opts: { squadId: string | null; recovering: boolean }) => ({
+      id, name: 'A', fullname: '', callsign: '',
+      perkpoints: 0, mobility: 4, armor: '', weapon: '', special_weapon: '', special_gear: '',
+      tag: '', perks: [], notes: '', squadId: opts.squadId, recovering: opts.recovering, wasBleedingOut: false,
+      grit: 3, grit_max: 3, ammo: 3, ammo_max: 3,
+      status: 'ok', offpos: 'engaged' as const, defpos: 'incover' as const,
+      suppressed: false, def_modifier: 0, special_weapon_uses: -1, special_gear_uses: -1,
+    })
+    useStore.setState({
+      missions: [{ id: 'm1', campaignId: 'c1', status: 'blueprint' as const, name: 'Op' }],
+      troopers: [
+        t('t1', { squadId: 'sq1', recovering: false }),  // in deploy squad
+        t('t2', { squadId: 'sq2', recovering: true }),   // other squad — should auto-clear
+        t('t3', { squadId: null,  recovering: true }),   // unassigned — should auto-clear
+      ],
+    })
+    await useStore.getState().deployMission('m1', 'sq1')
+    const state = useStore.getState()
+    expect(state.troopers.find(x => x.id === 't1')!.recovering).toBe(false)  // reset by deploy
+    expect(state.troopers.find(x => x.id === 't2')!.recovering).toBe(false)  // auto-cleared
+    expect(state.troopers.find(x => x.id === 't3')!.recovering).toBe(false)  // auto-cleared
   })
 
   it('setCampaignAirspace PATCHes and updates local campaign', async () => {

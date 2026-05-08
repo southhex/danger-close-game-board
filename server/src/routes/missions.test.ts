@@ -219,7 +219,7 @@ describe('POST /api/missions/:id/complete', () => {
     squadId = await createSquad(app, cookie, campaignId)
   })
 
-  it('transitions live→completed, nulls currentMissionId, awards REQ when enabled', async () => {
+  it('transitions live→completed, nulls currentMissionId, awards REQ per survivor when enabled', async () => {
     await setReqEnabled(app, cookie, campaignId)
 
     const id = await createBlueprint(app, cookie, campaignId)
@@ -229,21 +229,37 @@ describe('POST /api/missions/:id/complete', () => {
       body: JSON.stringify({ squadId }),
     })
 
+    // Sync 2 surviving troopers in the deployed squad
+    await app.request(`/api/campaigns/${campaignId}/state`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', Cookie: cookie },
+      body: JSON.stringify({
+        troopers: [
+          { id: 't1', squadId, status: 'ok', wasBleedingOut: false, grit: 3, grit_max: 3 },
+          { id: 't2', squadId, status: 'wounded', wasBleedingOut: false, grit: 1, grit_max: 3 },
+        ],
+        diceHistory: [],
+      }),
+    })
+
     const res = await app.request(`/api/missions/${id}/complete`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Cookie: cookie },
-      body: JSON.stringify({ fieldReport: 'Squad held the line', outcome: 'victory', awardedReq: 3 }),
+      body: JSON.stringify({ fieldReport: 'Squad held the line', outcome: 'victory' }),
     })
     expect(res.status).toBe(200)
     const body = (await res.json()) as {
-      mission: { status: string; data: { fieldReport: string } }
+      mission: { status: string; data: { fieldReport: string; awardedReq: number } }
       reqAwarded: number
       campaignReq: number
+      recoveringIds: string[]
     }
     expect(body.mission.status).toBe('completed')
     expect(body.mission.data.fieldReport).toBe('Squad held the line')
-    expect(body.reqAwarded).toBe(3)
-    expect(body.campaignReq).toBe(3)
+    expect(body.reqAwarded).toBe(2)   // 2 survivors
+    expect(body.campaignReq).toBe(2)
+    expect(body.recoveringIds).toContain('t2')  // ended Wounded → recovering
+    expect(body.recoveringIds).not.toContain('t1')
 
     const getRes = await app.request(`/api/campaigns/${campaignId}`, {
       headers: { Cookie: cookie },
@@ -252,7 +268,7 @@ describe('POST /api/missions/:id/complete', () => {
       campaign: { currentMissionId: string | null; req: number }
     }
     expect(getBody.campaign.currentMissionId).toBeNull()
-    expect(getBody.campaign.req).toBe(3)
+    expect(getBody.campaign.req).toBe(2)
   })
 
   it('does not award REQ when disabled', async () => {
@@ -263,14 +279,57 @@ describe('POST /api/missions/:id/complete', () => {
       body: JSON.stringify({ squadId }),
     })
 
+    // Sync 1 trooper — but REQ disabled, so no award
+    await app.request(`/api/campaigns/${campaignId}/state`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', Cookie: cookie },
+      body: JSON.stringify({
+        troopers: [{ id: 't1', squadId, status: 'ok', wasBleedingOut: false }],
+        diceHistory: [],
+      }),
+    })
+
     const res = await app.request(`/api/missions/${id}/complete`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Cookie: cookie },
-      body: JSON.stringify({ fieldReport: 'No REQ here', awardedReq: 5 }),
+      body: JSON.stringify({ fieldReport: 'No REQ here', outcome: 'defeat' }),
     })
     const body = (await res.json()) as { reqAwarded: number; campaignReq: number }
     expect(body.reqAwarded).toBe(0)
     expect(body.campaignReq).toBe(0)
+  })
+
+  it('flags wasBleedingOut troopers as recovering even if healed to wounded', async () => {
+    const id = await createBlueprint(app, cookie, campaignId)
+    await app.request(`/api/missions/${id}/deploy`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Cookie: cookie },
+      body: JSON.stringify({ squadId }),
+    })
+
+    await app.request(`/api/campaigns/${campaignId}/state`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', Cookie: cookie },
+      body: JSON.stringify({
+        troopers: [
+          { id: 't1', squadId, status: 'ok', wasBleedingOut: false },
+          { id: 't2', squadId, status: 'wounded', wasBleedingOut: true },  // healed from bleedingout
+          { id: 't3', squadId, status: 'dead', wasBleedingOut: false },
+        ],
+        diceHistory: [],
+      }),
+    })
+
+    const res = await app.request(`/api/missions/${id}/complete`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Cookie: cookie },
+      body: JSON.stringify({ outcome: 'victory' }),
+    })
+    const body = (await res.json()) as { recoveringIds: string[]; reqAwarded: number }
+    expect(body.recoveringIds).toContain('t2')       // wasBleedingOut → recovering
+    expect(body.recoveringIds).not.toContain('t1')   // ok, no flag
+    expect(body.recoveringIds).not.toContain('t3')   // dead, not recovering
+    expect(body.reqAwarded).toBe(0)                  // REQ disabled; dead not counted
   })
 })
 
@@ -385,7 +444,7 @@ describe('Full deploy → PUT state → complete cycle', () => {
     expect(campaignBody3.campaign.currentMissionId).toBeNull()
   })
 
-  it('awards REQ when req_enabled=1', async () => {
+  it('awards REQ per survivor when req_enabled=1', async () => {
     await setReqEnabled(app, cookie, campaignId)
     const missionId = await createBlueprint(app, cookie, campaignId)
     await app.request(`/api/missions/${missionId}/deploy`, {
@@ -393,14 +452,27 @@ describe('Full deploy → PUT state → complete cycle', () => {
       headers: { 'Content-Type': 'application/json', Cookie: cookie },
       body: JSON.stringify({ squadId }),
     })
+    // Sync 3 survivors in the deployed squad
+    await app.request(`/api/campaigns/${campaignId}/state`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', Cookie: cookie },
+      body: JSON.stringify({
+        troopers: [
+          { id: 'ta', squadId, status: 'ok', wasBleedingOut: false },
+          { id: 'tb', squadId, status: 'wounded', wasBleedingOut: false },
+          { id: 'tc', squadId, status: 'ok', wasBleedingOut: false },
+        ],
+        diceHistory: [],
+      }),
+    })
     const res = await app.request(`/api/missions/${missionId}/complete`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Cookie: cookie },
-      body: JSON.stringify({ fieldReport: 'done', outcome: 'victory', awardedReq: 3 }),
+      body: JSON.stringify({ fieldReport: 'done', outcome: 'victory' }),
     })
     expect(res.status).toBe(200)
     const body = (await res.json()) as { reqAwarded: number; campaignReq: number }
-    expect(body.reqAwarded).toBe(3)
+    expect(body.reqAwarded).toBe(3)  // 3 survivors
     expect(body.campaignReq).toBe(3)
   })
 })

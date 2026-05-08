@@ -211,11 +211,12 @@ export interface CompleteMissionResult {
   mission: Mission
   reqAwarded: number
   campaignReq: number
+  recoveringIds: string[]
 }
 
 export async function completeMissionApi(
   missionId: string,
-  body: { fieldReport: string; outcome: 'victory' | 'defeat' | 'aborted'; awardedReq?: number },
+  body: { fieldReport: string; outcome: 'victory' | 'defeat' | 'aborted' },
 ): Promise<CompleteMissionResult> {
   const res = await apiFetch(`/api/missions/${missionId}/complete`, {
     method: 'POST',
@@ -226,11 +227,13 @@ export async function completeMissionApi(
     mission: MissionServerShape
     reqAwarded: number
     campaignReq: number
+    recoveringIds: string[]
   }>(res, 'Complete mission failed')
   return {
     mission: missionFromServer(raw.mission),
     reqAwarded: raw.reqAwarded,
     campaignReq: raw.campaignReq,
+    recoveringIds: raw.recoveringIds ?? [],
   }
 }
 

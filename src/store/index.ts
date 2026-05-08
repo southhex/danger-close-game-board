@@ -139,7 +139,7 @@ interface Store extends AppState {
   updateMissionBlueprint: (mission: Mission) => Promise<void>
   deleteMission: (id: string) => Promise<void>
   deployMission: (missionId: string, squadId: string) => Promise<void>
-  completeMission: (missionId: string, body: { fieldReport: string; outcome: 'victory' | 'defeat' | 'aborted'; awardedReq?: number }) => Promise<void>
+  completeMission: (missionId: string, body: { fieldReport: string; outcome: 'victory' | 'defeat' | 'aborted' }) => Promise<void>
 
   setReq: (req: number) => Promise<void>
   spendReq: (amount: number, trooperId: string, gearChange: { slot: string; name: string | null }) => Promise<void>
@@ -211,6 +211,7 @@ function resetTrooperForMission(t: Trooper): Trooper {
     def_modifier: 0,
     special_weapon_uses: t.special_weapon ? maxUsesFor(t.special_weapon) : -1,
     special_gear_uses: t.special_gear ? maxUsesFor(t.special_gear) : -1,
+    wasBleedingOut: false,
   }
 }
 
@@ -819,7 +820,8 @@ export const useStore = create<Store>()(
             for (let i = 0; i < result.injuryCount!; i++) {
               newStatus = advanceStatusByInjury(newStatus)
             }
-            return { ...t, status: newStatus }
+            const nowBleedingOut = newStatus === 'bleedingout'
+            return { ...t, status: newStatus, wasBleedingOut: t.wasBleedingOut || nowBleedingOut }
           })
         }
         if (result.resolution === 'suppressed') {
@@ -1409,10 +1411,12 @@ export const useStore = create<Store>()(
       const missionState = missionStateFromBlueprint(updated, squadId)
 
       set(s => {
-        // Reset troopers in the deployed squad
-        const resetTroopers = s.troopers.map(t =>
-          t.squadId === squadId ? resetTrooperForMission(t) : t,
-        )
+        // Reset deployed squad members; auto-clear recovering on troopers NOT in the squad
+        const resetTroopers = s.troopers.map(t => {
+          if (t.squadId === squadId) return resetTrooperForMission(t)
+          if (t.recovering) return { ...t, recovering: false }
+          return t
+        })
         return {
           missions: s.missions.map(m => m.id === missionId ? updated : m),
           campaigns: campaignId
@@ -1428,16 +1432,32 @@ export const useStore = create<Store>()(
     completeMission: async (missionId, body) => {
       const result = await completeMissionApi(missionId, body)
       const campaignId = get().currentCampaignId
-      set(s => ({
-        missions: s.missions.map(m => m.id === missionId ? result.mission : m),
-        campaigns: campaignId
-          ? s.campaigns.map(c => c.id === campaignId
-              ? { ...c, currentMissionId: null, req: result.campaignReq }
-              : c)
-          : s.campaigns,
-        mission: null,
-        currentView: 'hq' as View,
-      }))
+      const liveMission = get().mission
+      const deployedSquadId = liveMission?.squadId ?? null
+      set(s => {
+        const updatedTroopers = s.troopers.map(t => {
+          if (!deployedSquadId || t.squadId !== deployedSquadId) return t
+          if (t.status === 'dead') return t
+          // Refill grit for survivors: min(grit_max + 1, 3) per SRD
+          const bonusGrit = Math.min(t.grit_max + 1, 3)
+          if (result.recoveringIds.includes(t.id)) {
+            return { ...t, recovering: true, grit: bonusGrit }
+          }
+          return { ...t, grit: bonusGrit }
+        })
+        return {
+          missions: s.missions.map(m => m.id === missionId ? result.mission : m),
+          campaigns: campaignId
+            ? s.campaigns.map(c => c.id === campaignId
+                ? { ...c, currentMissionId: null, req: result.campaignReq }
+                : c)
+            : s.campaigns,
+          troopers: updatedTroopers,
+          mission: null,
+          currentView: 'hq' as View,
+        }
+      })
+      scheduleSync()
     },
 
     setReq: async (req) => {

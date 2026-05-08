@@ -46,6 +46,7 @@ export interface Trooper {
 
   squadId: string | null
   recovering: boolean
+  wasBleedingOut: boolean   // flips true if status reaches bleedingout during mission; reset on deploy
 
   // Mission-state
   grit: number
