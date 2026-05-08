@@ -11,6 +11,7 @@ import type {
   MissionObjectiveCategory,
   MissionObjectiveSubtype,
   MissionSector,
+  SectorContentsState,
   InsertionType,
 } from '../../types'
 import SectorBlueprintCard from './SectorBlueprintCard'
@@ -77,13 +78,14 @@ interface FormState {
   sectors: MissionSector[]
 }
 
-function emptySector(weather: -2 | -1 | 0 | 1, role: MissionSector['role'] = 'standard', determined = false): MissionSector {
+function emptySector(weather: -2 | -1 | 0 | 1, role: MissionSector['role'] = 'standard'): MissionSector {
   return {
     id: newId(),
     name: '',
     description: '',
     role,
-    contentsState: determined ? 'predetermined' : 'undetermined',
+    contentsState: 'predetermined',
+    contentsType: 'engagement',
     cover: 1,
     space: 1,
     tl: 2,
@@ -112,8 +114,8 @@ function defaultsFromCampaign(airspace: Airspace | undefined): FormState {
     insertion: { lz: 'air', ez: null },
     stealthStart: false,
     sectors: [
-      { ...emptySector(weather, 'lz', true),       name: 'Landing Zone' },
-      { ...emptySector(weather, 'objective'),      name: 'Objective'    },
+      { ...emptySector(weather, 'lz'),        name: 'Landing Zone' },
+      { ...emptySector(weather, 'objective'), name: 'Objective'    },
     ],
   }
 }
@@ -131,9 +133,25 @@ function fromMission(m: Mission, fallbackAirspace: Airspace | undefined): FormSt
     insertion: m.insertion ?? { lz: 'air', ez: null },
     stealthStart: m.stealthStart ?? false,
     sectors: m.sectors && m.sectors.length > 0
-      ? m.sectors.map(s => ({ ...s }))
+      ? m.sectors.map(s => {
+          const rollAll = s.contentsState === 'undetermined'
+          return {
+            ...s,
+            rollCover:    rollAll || false,
+            rollSpace:    rollAll || false,
+            rollContents: rollAll || false,
+            rollTL:       rollAll || false,
+            contentsType: s.contentsType ?? 'engagement',
+          }
+        })
       : defaultsFromCampaign(fallbackAirspace).sectors,
   }
+}
+
+function deriveContentsState(s: MissionSector): SectorContentsState {
+  const needsRoll = !!(s.rollCover || s.rollSpace || s.rollContents ||
+    (s.rollTL && !s.rollContents && s.contentsType === 'engagement'))
+  return needsRoll ? 'undetermined' : 'predetermined'
 }
 
 interface ValidationState {
@@ -238,7 +256,7 @@ export default function MissionBuilder() {
         objectiveSubtype: form.objectiveSubtype,
         insertion: form.insertion,
         stealthStart: form.stealthStart,
-        sectors: form.sectors,
+        sectors: form.sectors.map(s => ({ ...s, contentsState: deriveContentsState(s) })),
         squadId: null,
       }
       if (editing && editingMission) {
