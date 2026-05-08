@@ -1,5 +1,4 @@
 import { useState } from 'react'
-import { useStore } from '../../store'
 import { Modal } from '../../components'
 import type { Mission } from '../../types'
 
@@ -23,9 +22,6 @@ function formatDate(iso?: string | null) {
 }
 
 export default function FieldReportPanel({ mission, open, onClose }: Props) {
-  const patchMissionFieldReport = useStore(s => s.patchMissionFieldReportApi ?? null)
-  // Use the API client directly since the store wraps it in updateMissionBlueprint (blueprint-only)
-  // We'll persist via the client helper imported from api/client
   const [report, setReport] = useState(mission.fieldReport ?? '')
   const [saving, setSaving]  = useState(false)
   const [saved, setSaved]    = useState(false)

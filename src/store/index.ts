@@ -19,7 +19,6 @@ import {
   createMissionApi, patchMissionBlueprintApi, deleteMissionApi,
   deployMissionApi, completeMissionApi,
   patchReqApi, spendReqApi, patchCampaignSettingsApi,
-  putMissionStateApi,
 } from '../api/client'
 import { fetchBootstrap, SetupRequiredError } from '../api/bootstrap'
 import { scheduleSync } from '../api/sync'
