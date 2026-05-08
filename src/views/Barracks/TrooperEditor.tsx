@@ -21,7 +21,7 @@ const EMPTY: Omit<Trooper, 'id'> = {
   name: '', fullname: '', callsign: '', perkpoints: 0,
   mobility: 5, armor: 'Medium Armor', weapon: 'Assault Rifle',
   special_weapon: '', special_gear: '', tag: '', perks: [], notes: '',
-  squadId: null, recovering: false,
+  squadId: null, recovering: false, wasBleedingOut: false,
   grit: 1, grit_max: 1, ammo: 3, ammo_max: 3,
   status: 'ok', offpos: 'engaged', defpos: 'incover',
   suppressed: false, def_modifier: 0, special_weapon_uses: -1, special_gear_uses: -1,

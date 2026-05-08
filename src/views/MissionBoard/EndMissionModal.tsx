@@ -52,7 +52,7 @@ export default function EndMissionModal({ open, onClose }: Props) {
   }
 
   return (
-    <Modal open={open} onClose={submitting ? undefined : onClose} title="END MISSION" width="min(90vw, 560px)">
+    <Modal open={open} onClose={() => { if (!submitting) onClose() }} title="END MISSION" width="min(90vw, 560px)">
       <div className="flex flex-col gap-4 text-[11px] font-mono">
 
         {/* Outcome selector */}

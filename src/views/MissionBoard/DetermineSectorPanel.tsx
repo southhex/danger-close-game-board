@@ -30,6 +30,7 @@ export default function DetermineSectorPanel() {
   const activeSector = mission.sectors.find(s => s.id === mission.activeSectorId)
   if (!activeSector) return null
 
+  const activeSectorId = activeSector.id
   const difficulty: MissionDifficulty = (mission as { difficulty?: MissionDifficulty }).difficulty ?? 'routine'
 
   function handleRollCover() {
@@ -63,7 +64,7 @@ export default function DetermineSectorPanel() {
 
     if (result.type === 'nothing') {
       setRolled(r => ({ ...r, contentsType: 'nothing' }))
-      applySectorEmpty(activeSector.id)
+      applySectorEmpty(activeSectorId)
       setStep('done')
       return
     }
@@ -71,7 +72,7 @@ export default function DetermineSectorPanel() {
     if (result.type === 'tl') {
       const { cover, space, weather } = rolled
       setRolled(r => ({ ...r, contentsType: 'tl', tl: result.tl }))
-      applySectorRoll(activeSector.id, {
+      applySectorRoll(activeSectorId, {
         cover: cover ?? 1,
         space: space ?? 1,
         tl: result.tl,
@@ -91,7 +92,7 @@ export default function DetermineSectorPanel() {
   function handleBoonApplied() {
     const { cover, space, weather, boonType } = rolled
     if (!boonType) return
-    applySectorBoon(activeSector.id, { type: boonType })
+    applySectorBoon(activeSectorId, { type: boonType })
     // Ensure sector has rolled values even for boon (cover/space used for context)
     // The sector is cleared by applySectorBoon — we just need to write the boon.
     // Write cover/space/weather to the sector too so SectorHeader has data.
