@@ -4,7 +4,7 @@ import type {
   EngagementState, TrooperIntent, OffenseResult, DefenseResult, EnemyTactic,
   HardTarget, AttachedForce, TrooperStatus,
   Campaign, User, AuthStatus,
-  Squad, Mission, Airspace,
+  Squad, Mission, Airspace, BoonType,
 } from '../types'
 import { gearByName } from '../data/gear'
 import {
@@ -87,6 +87,16 @@ interface Store extends AppState {
   // Sector clear-and-advance
   overwhelmActiveSector: () => void
   bypassActiveSector: () => void
+
+  // Stage 7: DetermineSector phase
+  applySectorRoll: (sectorId: string, values: { cover: 0|1|2; space: 0|1|2; tl: 1|2|3|4; weather: -2|-1|0|1 }) => void
+  applySectorBoon: (sectorId: string, boon: { type: BoonType; note?: string }) => void
+  applySectorEmpty: (sectorId: string) => void
+  applyAmmoCache: () => void
+  applyEnemyIntel: () => void
+  applyFallenFriendlies: (args: { ammoTrooperId?: string; ammo?: number; weaponTrooperId?: string; weapon?: string }) => void
+  applyRookies: () => void
+  reactivateSector: (sectorId: string, resetContents: boolean) => void
 
   // Engagement lifecycle
   beginEngagement: () => void
@@ -246,6 +256,10 @@ function clearAndAdvanceMission(
     sec.id === nextSector.id ? { ...sec, status: 'active' as const } : sec,
   )
 
+  const nextPhase: MissionPhase = nextSector.contentsState === 'undetermined'
+    ? 'determine_sector'
+    : 'advance'
+
   return {
     troopers: nextTroopers,
     mission: {
@@ -253,7 +267,7 @@ function clearAndAdvanceMission(
       sectors: activatedSectors,
       activeSectorId: nextSector.id,
       advance_rolls: 0,
-      phase: 'advance' as const,
+      phase: nextPhase,
       engagement: null,
       transitionFromSectorId: fromSectorId,
     },
@@ -675,11 +689,14 @@ export const useStore = create<Store>()(
         if (!s.mission) return s
         const target = s.mission.sectors.find(sec => sec.id === id)
         if (!target || target.status === 'cleared') return s
+        const phase: MissionPhase = target.contentsState === 'undetermined'
+          ? 'determine_sector'
+          : 'advance'
         return {
           mission: {
             ...s.mission,
             activeSectorId: id,
-            phase: 'advance' as const,
+            phase,
             engagement: null,
             advance_rolls: 0,
             transitionFromSectorId: null,
@@ -711,11 +728,13 @@ export const useStore = create<Store>()(
       if (get().authStatus === 'authenticated' && !get().currentCampaignId) return
       set((s) => {
         if (!s.mission) return s
+        const pending = s.mission.pendingAttachedForces ?? []
         return {
           mission: {
             ...s.mission,
             phase: 'engagement' as const,
-            engagement: initialEngagementState(),
+            engagement: { ...initialEngagementState(), attachedForces: pending },
+            pendingAttachedForces: [],
           },
         }
       })
@@ -999,6 +1018,159 @@ export const useStore = create<Store>()(
       set((s) => {
         if (!s.mission) return s
         return { mission: { ...s.mission, transitionFromSectorId: null } }
+      })
+      scheduleSync()
+    },
+
+    // ── Stage 7: DetermineSector mutators ─────────────────────────────────────
+
+    applySectorRoll: (sectorId, { cover, space, tl, weather }) => {
+      if (get().authStatus === 'authenticated' && !get().currentCampaignId) return
+      set((s) => {
+        if (!s.mission) return s
+        return {
+          mission: {
+            ...s.mission,
+            phase: 'advance' as const,
+            sectors: s.mission.sectors.map(sec =>
+              sec.id === sectorId
+                ? { ...sec, cover, space, tl, weather, contentsState: 'rolled' as const }
+                : sec,
+            ),
+          },
+        }
+      })
+      scheduleSync()
+    },
+
+    applySectorBoon: (sectorId, boon) => {
+      if (get().authStatus === 'authenticated' && !get().currentCampaignId) return
+      set((s) => {
+        if (!s.mission) return s
+        return {
+          mission: {
+            ...s.mission,
+            phase: 'catch_breath' as const,
+            sectors: s.mission.sectors.map(sec =>
+              sec.id === sectorId
+                ? { ...sec, contentsState: 'rolled' as const, status: 'cleared' as const, boon }
+                : sec,
+            ),
+          },
+        }
+      })
+      scheduleSync()
+    },
+
+    applySectorEmpty: (sectorId) => {
+      if (get().authStatus === 'authenticated' && !get().currentCampaignId) return
+      set((s) => {
+        if (!s.mission) return s
+        return {
+          mission: {
+            ...s.mission,
+            phase: 'catch_breath' as const,
+            sectors: s.mission.sectors.map(sec =>
+              sec.id === sectorId
+                ? { ...sec, contentsState: 'rolled' as const, status: 'cleared' as const, empty: true }
+                : sec,
+            ),
+          },
+        }
+      })
+      scheduleSync()
+    },
+
+    applyAmmoCache: () => {
+      if (get().authStatus === 'authenticated' && !get().currentCampaignId) return
+      set((s) => {
+        if (!s.mission) return s
+        return {
+          troopers: s.troopers.map(t => {
+            if (!isDeployed(t, s.mission)) return t
+            return { ...t, ammo: Math.min(t.ammo_max, t.ammo + 1) }
+          }),
+        }
+      })
+      scheduleSync()
+    },
+
+    applyEnemyIntel: () => {
+      if (get().authStatus === 'authenticated' && !get().currentCampaignId) return
+      set((s) => {
+        if (!s.mission) return s
+        return { mission: { ...s.mission, nextAdvanceBonus: 1 } }
+      })
+      scheduleSync()
+    },
+
+    applyFallenFriendlies: ({ ammoTrooperId, ammo, weaponTrooperId, weapon }) => {
+      if (get().authStatus === 'authenticated' && !get().currentCampaignId) return
+      set((s) => {
+        if (!s.mission) return s
+        return {
+          troopers: s.troopers.map(t => {
+            if (ammoTrooperId && t.id === ammoTrooperId && ammo != null) {
+              return { ...t, ammo: Math.min(t.ammo_max, t.ammo + ammo) }
+            }
+            if (weaponTrooperId && t.id === weaponTrooperId && weapon) {
+              return { ...t, special_weapon: weapon as Trooper['special_weapon'] }
+            }
+            return t
+          }),
+        }
+      })
+      scheduleSync()
+    },
+
+    applyRookies: () => {
+      if (get().authStatus === 'authenticated' && !get().currentCampaignId) return
+      set((s) => {
+        if (!s.mission) return s
+        const rookies: AttachedForce = {
+          id: newId(),
+          name: 'Rookies',
+          dice: 2,
+          isVip: false,
+          committed: false,
+        }
+        return {
+          mission: {
+            ...s.mission,
+            pendingAttachedForces: [...(s.mission.pendingAttachedForces ?? []), rookies],
+          },
+        }
+      })
+      scheduleSync()
+    },
+
+    reactivateSector: (sectorId, resetContents) => {
+      if (get().authStatus === 'authenticated' && !get().currentCampaignId) return
+      set((s) => {
+        if (!s.mission) return s
+        return {
+          mission: {
+            ...s.mission,
+            sectors: s.mission.sectors.map(sec => {
+              if (sec.id !== sectorId || sec.status !== 'cleared') return sec
+              if (resetContents) {
+                return {
+                  ...sec,
+                  status: 'pending' as const,
+                  contentsState: 'undetermined' as const,
+                  boon: undefined,
+                  empty: undefined,
+                }
+              }
+              // Keep contents — mark one-shot boons as consumed so they don't re-apply
+              const oneShot: string[] = ['ammo_cache', 'enemy_intel', 'fallen_friendlies']
+              const updatedBoon = sec.boon && oneShot.includes(sec.boon.type)
+                ? { ...sec.boon, consumed: true }
+                : sec.boon
+              return { ...sec, status: 'pending' as const, boon: updatedBoon }
+            }),
+          },
+        }
       })
       scheduleSync()
     },

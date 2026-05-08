@@ -432,3 +432,85 @@ describe('isDeployed', () => {
     expect(isDeployed(t, mkMission({ squadId: null }))).toBe(false)
   })
 })
+
+// ─── Stage 7: Sector determination roll helpers ───────────────────────────────
+import { rollCover, rollSpace, rollWeather, rollSectorContents, rollBoon } from '../src/utils/gameRules'
+
+describe('rollCover', () => {
+  it('1 → 0', () => expect(rollCover(1)).toBe(0))
+  it('2 → 1', () => expect(rollCover(2)).toBe(1))
+  it('3 → 1', () => expect(rollCover(3)).toBe(1))
+  it('4 → 1', () => expect(rollCover(4)).toBe(1))
+  it('5 → 2', () => expect(rollCover(5)).toBe(2))
+  it('6 → 2', () => expect(rollCover(6)).toBe(2))
+})
+
+describe('rollSpace', () => {
+  it('uses same brackets as rollCover', () => {
+    for (let d = 1; d <= 6; d++) {
+      expect(rollSpace(d)).toBe(rollCover(d))
+    }
+  })
+})
+
+describe('rollWeather', () => {
+  it('1 → −2', () => expect(rollWeather(1)).toBe(-2))
+  it('2 → −1', () => expect(rollWeather(2)).toBe(-1))
+  it('3 → 0', () => expect(rollWeather(3)).toBe(0))
+  it('5 → 0', () => expect(rollWeather(5)).toBe(0))
+  it('6 → +1', () => expect(rollWeather(6)).toBe(1))
+})
+
+describe('rollSectorContents', () => {
+  it('die=1 → nothing on all difficulties', () => {
+    expect(rollSectorContents(1, 'routine').type).toBe('nothing')
+    expect(rollSectorContents(1, 'hazardous').type).toBe('nothing')
+    expect(rollSectorContents(1, 'desperate').type).toBe('nothing')
+  })
+  it('die=2 → boon on all difficulties', () => {
+    expect(rollSectorContents(2, 'routine').type).toBe('boon')
+    expect(rollSectorContents(2, 'hazardous').type).toBe('boon')
+    expect(rollSectorContents(2, 'desperate').type).toBe('boon')
+  })
+  it('routine: die=3 → TL1', () => {
+    const r = rollSectorContents(3, 'routine')
+    expect(r.type).toBe('tl')
+    if (r.type === 'tl') expect(r.tl).toBe(1)
+  })
+  it('routine: die=6 → TL3', () => {
+    const r = rollSectorContents(6, 'routine')
+    expect(r.type).toBe('tl')
+    if (r.type === 'tl') expect(r.tl).toBe(3)
+  })
+  it('hazardous: die=3 → TL2', () => {
+    const r = rollSectorContents(3, 'hazardous')
+    expect(r.type).toBe('tl')
+    if (r.type === 'tl') expect(r.tl).toBe(2)
+  })
+  it('hazardous: die=6 → TL4', () => {
+    const r = rollSectorContents(6, 'hazardous')
+    expect(r.type).toBe('tl')
+    if (r.type === 'tl') expect(r.tl).toBe(4)
+  })
+  it('desperate: die=3 → TL2', () => {
+    const r = rollSectorContents(3, 'desperate')
+    expect(r.type).toBe('tl')
+    if (r.type === 'tl') expect(r.tl).toBe(2)
+  })
+  it('desperate: die=6 → TL4', () => {
+    const r = rollSectorContents(6, 'desperate')
+    expect(r.type).toBe('tl')
+    if (r.type === 'tl') expect(r.tl).toBe(4)
+  })
+})
+
+describe('rollBoon', () => {
+  it('maps each die 1–6 to a boon type', () => {
+    expect(rollBoon(1)).toBe('ammo_cache')
+    expect(rollBoon(2)).toBe('enemy_intel')
+    expect(rollBoon(3)).toBe('prepared_ground')
+    expect(rollBoon(4)).toBe('fallen_friendlies')
+    expect(rollBoon(5)).toBe('positions_revealed')
+    expect(rollBoon(6)).toBe('rookies')
+  })
+})

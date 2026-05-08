@@ -62,10 +62,13 @@ export default function AdvanceRollPanel() {
 
   const setStealth = (v: boolean) => setMission({ stealth: v })
 
+  const nextBonus = mission.nextAdvanceBonus ?? 0
+
   const roll = () => {
     clearTransition()
+    if (nextBonus) setMission({ nextAdvanceBonus: undefined })
     const dice = rollDice(2, 6)
-    const total = dice[0] + dice[1] + mod.total
+    const total = dice[0] + dice[1] + mod.total + nextBonus
     const result = advanceResult(total)
     addRoll({
       id: newId(), timestamp: Date.now(), label: 'Advance Roll',
@@ -157,7 +160,8 @@ export default function AdvanceRollPanel() {
             Fatigue {mod.fatigue} · Wounds {mod.wounds} · Weather {mod.weather >= 0 ? `+${mod.weather}` : mod.weather}
             {' '}· TL {mod.tl} · Stealth {mod.stealth >= 0 ? `+${mod.stealth}` : mod.stealth}
             {' '}· Assault +{mod.assault}{droneBonus > 0 && ` · Drone +${mod.drone}`}
-            {' '}= <span className={mod.total < 0 ? 'text-bad' : 'text-ok'}>{mod.total >= 0 ? `+${mod.total}` : mod.total}</span>
+            {nextBonus > 0 && <span className="text-ok"> · Intel +{nextBonus}</span>}
+            {' '}= <span className={mod.total + nextBonus < 0 ? 'text-bad' : 'text-ok'}>{(mod.total + nextBonus) >= 0 ? `+${mod.total + nextBonus}` : mod.total + nextBonus}</span>
           </div>
 
           <button onClick={roll} className="text-[11px] text-warn border border-warn px-3 py-1">ROLL 2D6 ▸</button>

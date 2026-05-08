@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { ConfirmDialog, StatusBadge } from '../../components'
 import { useStore } from '../../store'
-import SectorEditorModal from './SectorEditorModal'
+import AddSectorModal from './AddSectorModal'
 import SectorHeader from './SectorHeader'
 import AdvancePreview from './AdvancePreview'
 import { isDeployed } from '../../utils/gameRules'
@@ -85,6 +85,17 @@ export default function CatchBreathPanel() {
         {grazedCleared && hadGrazed && (
           <div className="text-warn border border-warn/40 px-2 py-1 text-[10px]">
             GRAZED TROOPERS AUTO-RECOVERED TO OK
+          </div>
+        )}
+        {activeSector?.empty && (
+          <div className="text-muted border border-border px-2 py-1 text-[10px] mt-1">
+            SECTOR EMPTY — No opposition encountered.
+          </div>
+        )}
+        {activeSector?.boon && (
+          <div className="text-ok border border-ok/40 px-2 py-1 text-[10px] mt-1">
+            BOON: {activeSector.boon.type.replace(/_/g, ' ').toUpperCase()}
+            {activeSector.boon.note ? ` — ${activeSector.boon.note}` : ''}
           </div>
         )}
       </div>
@@ -252,7 +263,7 @@ export default function CatchBreathPanel() {
                 END MISSION ▸
               </button>
             </div>
-            <SectorEditorModal
+            <AddSectorModal
               open={addSectorOpen}
               onClose={() => setAddSectorOpen(false)}
             />

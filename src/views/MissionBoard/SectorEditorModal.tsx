@@ -3,6 +3,11 @@ import { Modal, ConfirmDialog } from '../../components'
 import { useStore } from '../../store'
 import type { MissionSector } from '../../types'
 
+interface ReactivateState {
+  open: boolean
+  resetContents: boolean
+}
+
 interface Props {
   sector?: MissionSector
   open: boolean
@@ -38,6 +43,7 @@ export default function SectorEditorModal({ sector, open, onClose }: Props) {
   const addSector = useStore(s => s.addSector)
   const updateSector = useStore(s => s.updateSector)
   const deleteSector = useStore(s => s.deleteSector)
+  const reactivateSector = useStore(s => s.reactivateSector)
 
   const isEdit = sector !== undefined
 
@@ -57,6 +63,7 @@ export default function SectorEditorModal({ sector, open, onClose }: Props) {
   }, [open, sector])
 
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false)
+  const [reactivate, setReactivate] = useState<ReactivateState>({ open: false, resetContents: true })
 
   function handleSave() {
     if (isEdit && sector) {
@@ -76,6 +83,15 @@ export default function SectorEditorModal({ sector, open, onClose }: Props) {
   }
 
   const canDelete = isEdit && sector && sector.status !== 'active'
+  const isCleared = isEdit && sector?.status === 'cleared'
+
+  function handleReactivateConfirm() {
+    if (sector) {
+      reactivateSector(sector.id, reactivate.resetContents)
+      setReactivate({ open: false, resetContents: true })
+      onClose()
+    }
+  }
 
   return (
     <>
@@ -158,13 +174,21 @@ export default function SectorEditorModal({ sector, open, onClose }: Props) {
 
           {/* Actions */}
           <div className="flex items-center justify-between pt-1">
-            <div>
-              {canDelete && (
+            <div className="flex gap-2">
+              {canDelete && !isCleared && (
                 <button
                   onClick={() => setConfirmDeleteOpen(true)}
                   className="px-3 py-1 text-xs border border-bad text-bad font-mono"
                 >
                   DELETE
+                </button>
+              )}
+              {isCleared && (
+                <button
+                  onClick={() => setReactivate(r => ({ ...r, open: true }))}
+                  className="px-3 py-1 text-xs border border-warn text-warn font-mono"
+                >
+                  REACTIVATE
                 </button>
               )}
             </div>
@@ -175,12 +199,14 @@ export default function SectorEditorModal({ sector, open, onClose }: Props) {
               >
                 CANCEL
               </button>
-              <button
-                onClick={handleSave}
-                className="px-3 py-1 text-xs border border-warn text-warn font-mono"
-              >
-                SAVE
-              </button>
+              {!isCleared && (
+                <button
+                  onClick={handleSave}
+                  className="px-3 py-1 text-xs border border-warn text-warn font-mono"
+                >
+                  SAVE
+                </button>
+              )}
             </div>
           </div>
 
@@ -196,6 +222,51 @@ export default function SectorEditorModal({ sector, open, onClose }: Props) {
         onCancel={() => setConfirmDeleteOpen(false)}
         tone="danger"
       />
+
+      <Modal
+        open={reactivate.open}
+        onClose={() => setReactivate(r => ({ ...r, open: false }))}
+        title="REACTIVATE SECTOR"
+        width="min(90vw, 380px)"
+      >
+        <div className="flex flex-col gap-4 text-[11px] font-mono">
+          <div className="text-muted text-[10px]">
+            Reactivate cleared sector? The squad can advance back here on their next move.
+          </div>
+          <label className="flex items-center gap-2 text-[10px] cursor-pointer">
+            <input
+              type="radio"
+              name="reactivate-mode"
+              checked={reactivate.resetContents}
+              onChange={() => setReactivate(r => ({ ...r, resetContents: true }))}
+            />
+            Reset contents (re-roll on entry)
+          </label>
+          <label className="flex items-center gap-2 text-[10px] cursor-pointer">
+            <input
+              type="radio"
+              name="reactivate-mode"
+              checked={!reactivate.resetContents}
+              onChange={() => setReactivate(r => ({ ...r, resetContents: false }))}
+            />
+            Keep current contents
+          </label>
+          <div className="flex gap-2 justify-end">
+            <button
+              onClick={() => setReactivate(r => ({ ...r, open: false }))}
+              className="px-3 py-1 text-xs border border-border text-muted font-mono"
+            >
+              CANCEL
+            </button>
+            <button
+              onClick={handleReactivateConfirm}
+              className="px-3 py-1 text-xs border border-warn text-warn font-mono"
+            >
+              REACTIVATE
+            </button>
+          </div>
+        </div>
+      </Modal>
     </>
   )
 }

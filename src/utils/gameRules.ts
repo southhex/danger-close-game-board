@@ -1,6 +1,7 @@
 import type {
   Trooper, AdvanceResult, OffensivePosition, DefensivePosition, RollTableEntry,
   MissionSector, HardTarget, OffenseResult, EnemyTactic, Mission, MissionState,
+  MissionDifficulty, BoonType,
 } from '../types'
 
 /**
@@ -302,4 +303,64 @@ export function weatherLabel(weather: -2 | -1 | 0 | 1): string {
   if (weather === -1) return 'HARSH'
   if (weather === 0)  return 'CLEAR'
   return 'FAVORABLE'
+}
+
+// ─── Sector determination roll tables (SRD ch.3) ────────────────────────────
+
+// 1d6 → cover: 1=0, 2–4=1, 5–6=2
+export function rollCover(die: number): 0 | 1 | 2 {
+  if (die === 1) return 0
+  if (die <= 4)  return 1
+  return 2
+}
+
+// 1d6 → space: same bracket as cover
+export function rollSpace(die: number): 0 | 1 | 2 {
+  return rollCover(die)
+}
+
+// 1d6 → weather: 1=−2, 2=−1, 3–5=0, 6=+1
+export function rollWeather(die: number): -2 | -1 | 0 | 1 {
+  if (die === 1) return -2
+  if (die === 2) return -1
+  if (die <= 5)  return 0
+  return 1
+}
+
+export type SectorContentsResult =
+  | { type: 'tl'; tl: 1 | 2 | 3 | 4 }
+  | { type: 'boon' }
+  | { type: 'nothing' }
+
+// 1d6 + difficulty → contents
+// Routine:   1=nothing, 2=boon, 3–4=TL1, 5=TL2, 6=TL3
+// Hazardous: 1=nothing, 2=boon, 3–4=TL2, 5=TL3, 6=TL4
+// Desperate: 1=nothing, 2=boon, 3=TL2,   4–5=TL3, 6=TL4
+export function rollSectorContents(die: number, difficulty: MissionDifficulty): SectorContentsResult {
+  if (die === 1) return { type: 'nothing' }
+  if (die === 2) return { type: 'boon' }
+  if (difficulty === 'routine') {
+    if (die <= 4) return { type: 'tl', tl: 1 }
+    if (die === 5) return { type: 'tl', tl: 2 }
+    return { type: 'tl', tl: 3 }
+  }
+  if (difficulty === 'hazardous') {
+    if (die <= 4) return { type: 'tl', tl: 2 }
+    if (die === 5) return { type: 'tl', tl: 3 }
+    return { type: 'tl', tl: 4 }
+  }
+  // desperate
+  if (die === 3) return { type: 'tl', tl: 2 }
+  if (die <= 5)  return { type: 'tl', tl: 3 }
+  return { type: 'tl', tl: 4 }
+}
+
+// 1d6 → boon type
+export function rollBoon(die: number): BoonType {
+  if (die === 1) return 'ammo_cache'
+  if (die === 2) return 'enemy_intel'
+  if (die === 3) return 'prepared_ground'
+  if (die === 4) return 'fallen_friendlies'
+  if (die === 5) return 'positions_revealed'
+  return 'rookies'
 }

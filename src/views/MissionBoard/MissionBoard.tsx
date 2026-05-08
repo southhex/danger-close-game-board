@@ -7,6 +7,7 @@ import SectorChainStrip from './SectorChainStrip'
 import EngagementPanel from './EngagementPanel'
 import CatchBreathPanel from './CatchBreathPanel'
 import MissionCompletePanel from './MissionCompletePanel'
+import DetermineSectorPanel from './DetermineSectorPanel'
 
 export default function MissionBoard() {
   const mission = useStore(s => s.mission)
@@ -26,6 +27,7 @@ export default function MissionBoard() {
       <div className="flex-1 overflow-auto">
         <div className="p-3 flex flex-col gap-3 pb-12">
           <SectorChainStrip />
+          {mission.phase === 'determine_sector' && <DetermineSectorPanel />}
           {mission.phase === 'advance' && <AdvanceRollPanel />}
           {mission.phase === 'engagement' && <EngagementPanel />}
           {mission.phase === 'catch_breath' && <CatchBreathPanel />}

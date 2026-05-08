@@ -99,6 +99,20 @@ export type SectorRole = 'standard' | 'lz' | 'ez' | 'objective'
 
 export type SectorContentsState = 'predetermined' | 'undetermined' | 'rolled'
 
+export type BoonType =
+  | 'ammo_cache'
+  | 'enemy_intel'
+  | 'prepared_ground'
+  | 'fallen_friendlies'
+  | 'positions_revealed'
+  | 'rookies'
+
+export interface SectorBoon {
+  type: BoonType
+  note?: string
+  consumed?: boolean
+}
+
 export interface Mission {
   id: string
   campaignId: string
@@ -134,7 +148,7 @@ export interface MissionSector {
   description?: string
   role?: SectorRole
   contentsState?: SectorContentsState
-  boon?: string | null
+  boon?: SectorBoon
   empty?: boolean
 }
 

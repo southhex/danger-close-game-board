@@ -415,3 +415,134 @@ describe('sector transition state', () => {
     expect(useStore.getState().mission!.transitionFromSectorId).toBeNull()
   })
 })
+
+describe('Stage 7: DetermineSector mutators', () => {
+  beforeEach(() => { resetStore() })
+
+  const makeMission = (sectorOverrides: Partial<import('../src/types').MissionSector> = {}) => ({
+    id: 'm', name: 'M',
+    sectors: [{
+      id: 's1', name: 'Alpha', cover: 1, space: 1, tl: 2, weather: 0,
+      status: 'active' as const, contentsState: 'undetermined' as const,
+      ...sectorOverrides,
+    }],
+    activeSectorId: 's1',
+    phase: 'determine_sector' as const,
+    engagement: null, momentum: 0, advance_rolls: 0, stealth: false, notes: '',
+    transitionFromSectorId: null, squadId: TEST_SQUAD,
+  })
+
+  it('applySectorRoll writes cover/space/tl/weather and transitions to advance', () => {
+    useStore.setState({ mission: makeMission() })
+    useStore.getState().applySectorRoll('s1', { cover: 2, space: 0, tl: 3, weather: -1 })
+    const m = useStore.getState().mission!
+    expect(m.phase).toBe('advance')
+    const s = m.sectors[0]
+    expect(s.cover).toBe(2)
+    expect(s.space).toBe(0)
+    expect(s.tl).toBe(3)
+    expect(s.weather).toBe(-1)
+    expect(s.contentsState).toBe('rolled')
+  })
+
+  it('applySectorEmpty marks sector cleared+empty and transitions to catch_breath', () => {
+    useStore.setState({ mission: makeMission() })
+    useStore.getState().applySectorEmpty('s1')
+    const m = useStore.getState().mission!
+    expect(m.phase).toBe('catch_breath')
+    const s = m.sectors[0]
+    expect(s.status).toBe('cleared')
+    expect(s.empty).toBe(true)
+    expect(s.contentsState).toBe('rolled')
+  })
+
+  it('applySectorBoon marks sector cleared with boon and transitions to catch_breath', () => {
+    useStore.setState({ mission: makeMission() })
+    useStore.getState().applySectorBoon('s1', { type: 'ammo_cache' })
+    const m = useStore.getState().mission!
+    expect(m.phase).toBe('catch_breath')
+    const s = m.sectors[0]
+    expect(s.status).toBe('cleared')
+    expect(s.boon?.type).toBe('ammo_cache')
+  })
+
+  it('applyAmmoCache increments ammo capped at ammo_max', () => {
+    useStore.setState({
+      troopers: [makeTrooper({ id: 'a', ammo: 3, ammo_max: 3 }), makeTrooper({ id: 'b', ammo: 1, ammo_max: 3 })],
+      mission: { ...makeMission(), squadId: TEST_SQUAD },
+    })
+    useStore.getState().applyAmmoCache()
+    const ts = useStore.getState().troopers
+    expect(ts.find(t => t.id === 'a')!.ammo).toBe(3) // already capped
+    expect(ts.find(t => t.id === 'b')!.ammo).toBe(2) // +1
+  })
+
+  it('applyEnemyIntel sets nextAdvanceBonus to 1', () => {
+    useStore.setState({ mission: makeMission() })
+    useStore.getState().applyEnemyIntel()
+    expect(useStore.getState().mission!.nextAdvanceBonus).toBe(1)
+  })
+
+  it('applyRookies queues an attached force on pendingAttachedForces', () => {
+    useStore.setState({ mission: makeMission() })
+    useStore.getState().applyRookies()
+    const m = useStore.getState().mission!
+    expect(m.pendingAttachedForces).toHaveLength(1)
+    expect(m.pendingAttachedForces![0].name).toBe('Rookies')
+    expect(m.pendingAttachedForces![0].dice).toBe(2)
+  })
+
+  it('beginEngagement transfers pendingAttachedForces to engagement and clears them', () => {
+    const rookies = { id: 'r1', name: 'Rookies', dice: 2, isVip: false, committed: false }
+    useStore.setState({
+      mission: { ...makeMission(), phase: 'advance', pendingAttachedForces: [rookies] },
+    })
+    useStore.getState().beginEngagement()
+    const m = useStore.getState().mission!
+    expect(m.engagement!.attachedForces).toHaveLength(1)
+    expect(m.engagement!.attachedForces[0].name).toBe('Rookies')
+    expect(m.pendingAttachedForces).toHaveLength(0)
+  })
+
+  it('setActiveSector sets determine_sector phase for undetermined sector', () => {
+    useStore.setState({
+      mission: {
+        ...makeMission({ contentsState: 'undetermined', status: 'pending' }),
+        sectors: [
+          { id: 's0', name: 'LZ', cover: 1, space: 1, tl: 1, weather: 0, status: 'active', contentsState: 'predetermined' },
+          { id: 's1', name: 'Alpha', cover: 1, space: 1, tl: 2, weather: 0, status: 'pending', contentsState: 'undetermined' },
+        ],
+        activeSectorId: 's0',
+        phase: 'catch_breath',
+      },
+    })
+    useStore.getState().setActiveSector('s1')
+    expect(useStore.getState().mission!.phase).toBe('determine_sector')
+  })
+
+  it('reactivateSector with resetContents sets status=pending and contentsState=undetermined', () => {
+    useStore.setState({
+      mission: { ...makeMission({ status: 'cleared', contentsState: 'rolled', empty: true }) },
+    })
+    useStore.getState().reactivateSector('s1', true)
+    const s = useStore.getState().mission!.sectors[0]
+    expect(s.status).toBe('pending')
+    expect(s.contentsState).toBe('undetermined')
+    expect(s.empty).toBeUndefined()
+  })
+
+  it('reactivateSector keeping contents marks one-shot boon as consumed', () => {
+    useStore.setState({
+      mission: {
+        ...makeMission({
+          status: 'cleared', contentsState: 'rolled',
+          boon: { type: 'ammo_cache' },
+        }),
+      },
+    })
+    useStore.getState().reactivateSector('s1', false)
+    const s = useStore.getState().mission!.sectors[0]
+    expect(s.status).toBe('pending')
+    expect(s.boon?.consumed).toBe(true)
+  })
+})
