@@ -208,19 +208,15 @@ export function createMissionRoutes(db: Database = defaultDb): Hono {
       return c.json({ error: `Cannot complete a mission with status '${existing.status}'` }, 409)
     }
 
-    let body: { fieldReport?: unknown; outcome?: unknown; awardedReq?: unknown }
+    let body: { fieldReport?: unknown; outcome?: unknown }
     try {
-      body = await c.req.json<{ fieldReport?: unknown; outcome?: unknown; awardedReq?: unknown }>()
+      body = await c.req.json<{ fieldReport?: unknown; outcome?: unknown }>()
     } catch {
       return c.json({ error: 'Invalid JSON body' }, 400)
     }
 
     const fieldReport = typeof body.fieldReport === 'string' ? body.fieldReport : ''
     const outcome = typeof body.outcome === 'string' ? body.outcome : 'victory'
-    const awardedReq =
-      typeof body.awardedReq === 'number' && Number.isFinite(body.awardedReq) && body.awardedReq >= 0
-        ? Math.floor(body.awardedReq)
-        : 0
 
     const campaign = db
       .prepare<[string], CampaignRow>(
@@ -228,18 +224,50 @@ export function createMissionRoutes(db: Database = defaultDb): Hono {
       )
       .get(existing.campaign_id)!
 
-    const data = JSON.parse(existing.data) as Record<string, unknown>
-    data['fieldReport'] = fieldReport
-    data['outcome'] = outcome
-    data['status'] = 'completed'
+    // Read deployed troopers for this campaign to compute recovering flags + REQ
+    const missionData = JSON.parse(existing.data) as Record<string, unknown>
+    const squadId = typeof missionData['squadId'] === 'string' ? missionData['squadId'] : null
+
+    interface TrooperData {
+      id: string
+      squadId?: string | null
+      status?: string
+      wasBleedingOut?: boolean
+      grit?: number
+      grit_max?: number
+    }
+    const trooperRows = db
+      .prepare<[string], { id: string; data: string }>(
+        'SELECT id, data FROM troopers WHERE campaign_id = ?'
+      )
+      .all(existing.campaign_id)
+    const allTroopers = trooperRows.map(r => JSON.parse(r.data) as TrooperData)
+
+    // Identify deployed squad members
+    const deployedTroopers = squadId
+      ? allTroopers.filter(t => t.squadId === squadId)
+      : []
+
+    // recovering: ended Wounded OR was BleedingOut at any point during mission
+    const recoveringIds = deployedTroopers
+      .filter(t => t.status !== 'dead' && (t.status === 'wounded' || t.wasBleedingOut === true))
+      .map(t => t.id)
+
+    // REQ: +1 per surviving deployed trooper when req_enabled
+    const survivorCount = deployedTroopers.filter(t => t.status !== 'dead').length
+    const reqDelta = campaign.req_enabled === 1 ? survivorCount : 0
+
+    missionData['fieldReport'] = fieldReport
+    missionData['outcome'] = outcome
+    missionData['status'] = 'completed'
+    missionData['awardedReq'] = reqDelta
 
     const completedAt = new Date().toISOString()
-    const reqDelta = campaign.req_enabled === 1 ? awardedReq : 0
 
     db.transaction(() => {
       db.prepare<[string, string, string]>(
         "UPDATE missions SET status = 'completed', data = ?, completed_at = ? WHERE id = ?"
-      ).run(JSON.stringify(data), completedAt, id)
+      ).run(JSON.stringify(missionData), completedAt, id)
       db.prepare<[string]>(
         'UPDATE campaigns SET current_mission_id = NULL WHERE id = ?'
       ).run(existing.campaign_id)
@@ -265,6 +293,7 @@ export function createMissionRoutes(db: Database = defaultDb): Hono {
       mission: rowToMission(row),
       reqAwarded: reqDelta,
       campaignReq: updatedCampaign.req,
+      recoveringIds,
     })
   })
 

@@ -4,6 +4,7 @@ import { useStore } from '../../store'
 import SectorEditorModal from './SectorEditorModal'
 import SectorHeader from './SectorHeader'
 import AdvancePreview from './AdvancePreview'
+import EndMissionModal from './EndMissionModal'
 import { isDeployed } from '../../utils/gameRules'
 
 export default function CatchBreathPanel() {
@@ -11,7 +12,6 @@ export default function CatchBreathPanel() {
   const allTroopers = useStore(s => s.troopers)
   const updateTrooper = useStore(s => s.updateTrooper)
   const advanceToNextSector = useStore(s => s.advanceToNextSector)
-  const endMission = useStore(s => s.endMission)
   const updateEngagement = useStore(s => s.updateEngagement)
 
   // Derive in component body, not in selectors
@@ -55,7 +55,7 @@ export default function CatchBreathPanel() {
 
   // Add sector modal
   const [addSectorOpen, setAddSectorOpen] = useState(false)
-  const [endConfirmOpen, setEndConfirmOpen] = useState(false)
+  const [endMissionOpen, setEndMissionOpen] = useState(false)
 
   // Radio strike note
   const [radioNote, setRadioNote] = useState<string | null>(null)
@@ -246,7 +246,7 @@ export default function CatchBreathPanel() {
                 ADD NEXT SECTOR
               </button>
               <button
-                onClick={() => setEndConfirmOpen(true)}
+                onClick={() => setEndMissionOpen(true)}
                 className="w-full px-3 py-2 border border-ok text-ok text-[10px] text-left"
               >
                 END MISSION ▸
@@ -256,14 +256,9 @@ export default function CatchBreathPanel() {
               open={addSectorOpen}
               onClose={() => setAddSectorOpen(false)}
             />
-            <ConfirmDialog
-              open={endConfirmOpen}
-              title="END MISSION"
-              message="Mark this mission complete? Trooper status carries forward to the next mission."
-              confirmLabel="END MISSION"
-              tone="default"
-              onConfirm={() => { setEndConfirmOpen(false); endMission() }}
-              onCancel={() => setEndConfirmOpen(false)}
+            <EndMissionModal
+              open={endMissionOpen}
+              onClose={() => setEndMissionOpen(false)}
             />
           </>
         )}
@@ -279,7 +274,7 @@ export default function CatchBreathPanel() {
             message={`Mark ${trooper?.name ?? 'trooper'} as dead and remove from active roster?`}
             confirmLabel="LOST"
             onConfirm={() => {
-              updateTrooper(lostConfirmId, { status: 'dead', active: false })
+              updateTrooper(lostConfirmId, { status: 'dead' })
               setLostConfirmId(null)
             }}
             onCancel={() => setLostConfirmId(null)}
