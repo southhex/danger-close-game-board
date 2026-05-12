@@ -37,6 +37,6 @@ if (isProduction) {
   app.get('/*', serveStatic({ path: './dist/index.html' }))
 }
 
-serve({ fetch: app.fetch, port }, (info) => {
-  console.log(`[server] Listening on http://localhost:${info.port} (${isProduction ? 'production' : 'development'})`)
+serve({ fetch: app.fetch, port, hostname: '0.0.0.0' }, (info) => {
+  console.log(`[server] Listening on http://0.0.0.0:${info.port} (${isProduction ? 'production' : 'development'})`)
 })
