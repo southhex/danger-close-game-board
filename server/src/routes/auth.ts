@@ -27,12 +27,15 @@ interface CountRow {
 const MAX_AGE = SESSION_TTL_DAYS * 24 * 60 * 60
 
 function cookieOptions() {
+  // secure: true requires HTTPS — opt-in via SECURE_COOKIES=true rather than
+  // assuming production always means HTTPS (e.g. plain HTTP on a home LXC).
+  const secure = process.env.SECURE_COOKIES === 'true'
   return {
     httpOnly: true,
     sameSite: 'Lax' as const,
     path: '/',
     maxAge: MAX_AGE,
-    ...(process.env.NODE_ENV === 'production' ? { secure: true } : {}),
+    ...(secure ? { secure: true } : {}),
   }
 }
 
