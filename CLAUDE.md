@@ -53,7 +53,7 @@ src/
                   # DetermineSectorPanel, BoonResolver, AddSectorModal,
                   # EndMissionModal, DeployConfirmModal, MissionCompletePanel
     MissionBuilder/ # MissionBuilder, SectorBlueprintCard
-    Armoury/      # Armoury, GearGrid, PurchaseConfirmDialog
+    Armoury/      # Armoury, GearDetailModal
     DiceTray/     # DiceControls, MobilityCheckRoll, RollHistory, DiceTray (modal)
     Settings/     # ExportImport, Settings
   store/index.ts  # Zustand store — squads, missions, troopers, campaigns, ui state
@@ -111,12 +111,13 @@ Defined in `src/types.ts`. The SRD is the authority on all mechanics.
 - `Trooper` — persistent unit; `squadId: string | null`, `recovering: boolean`, `wasBleedingOut: boolean`; mission-state fields including `special_weapon_uses` / `special_gear_uses`
 - `Squad` — `{ id, campaignId, name, callsign?, sergeantId, perks[], notes }`; max 5 members
 - `GearItem` — static bundled data; includes `mobility_cost`, `reqcost`, `max_uses`, full `properties` text
+- `CampaignGearItem` — `{ gearName, stock, customName, customReq }`; row in `campaign_gear` table; only exists when a campaign has interacted with that item. Items with effective REQ 0 are untracked (no stock limit).
 - `Mission` — top-level entity; `status: 'blueprint'|'live'|'completed'`; `objective`, `insertion`, `stealthStart`, `sectors?`, `squadId`, `fieldReport`, `state?: MissionState`
 - `MissionSector` — `{ id, name, cover, space, tl, weather, status, description?, role?, contentsState?, boon?, empty?, rollCover?, rollSpace?, rollContents?, rollTL?, contentsType? }`. `contentsState` is derived on blueprint save from the roll flags — never set directly in the builder. Old sectors without roll flags are treated as legacy-undetermined in `DetermineSectorPanel` (full roll flow preserved).
 - `MissionState` — live runner state: `{ sectors, activeSectorId, momentum, advance_rolls, stealth, notes, phase, engagement, nextAdvanceBonus?, pendingAttachedForces? }`
 - `EngagementState` — full wizard state: step, pressure, hardTargets, attachedForces, intents, offenseResult, defenseResults, nextExchangeModifiers, etc.
 - `Campaign` — `{ id, name, description, defaultAirspace, reqEnabled, req, currentMissionId }`
-- `AppState` — root store schema: `{ campaigns, currentCampaignId, squads, missions, troopers, mission, diceHistory, … }`
+- `AppState` — root store schema: `{ campaigns, currentCampaignId, squads, missions, troopers, mission, diceHistory, campaignGear, … }`
 
 ---
 
@@ -250,3 +251,4 @@ Campaign board, free-roam objective type, hex topology, procedural mission gener
 | `001_initial.sql` | users, sessions, campaigns, troopers, dice_rolls |
 | `002_stage2.sql` | squads + missions tables; campaigns gains defaultAirspace, reqEnabled, req, currentMissionId |
 | `003_drop_current_mission.sql` | drops legacy campaigns.current_mission JSON column |
+| `004_campaign_gear.sql` | campaign_gear table — per-campaign gear stock, custom_name, custom_req |
