@@ -15,7 +15,7 @@ interface Props {
 const BUY_QTYS = [1, 3, 5]
 
 export default function GearDetailModal({ item, campaignGear, reqEnabled, reqPool, assignedCount, onClose }: Props) {
-  const buyGearStock    = useStore(s => s.buyGearStock)
+  const buyGearStock     = useStore(s => s.buyGearStock)
   const updateGearConfig = useStore(s => s.updateGearConfig)
 
   const effectiveReq  = campaignGear?.customReq !== null && campaignGear?.customReq !== undefined
@@ -27,39 +27,58 @@ export default function GearDetailModal({ item, campaignGear, reqEnabled, reqPoo
   const tracked = reqEnabled && effectiveReq > 0
   const avail   = Math.max(0, stock - assignedCount)
 
-  // Config edit state
-  const [customName, setCustomName] = useState(campaignGear?.customName ?? '')
-  const [customReq, setCustomReq]   = useState<string>(
+  const isCustomised = !!(campaignGear?.customName || (campaignGear?.customReq !== null && campaignGear?.customReq !== undefined))
+
+  const [nameVal, setNameVal] = useState(campaignGear?.customName ?? item.name)
+  const [reqVal, setReqVal]   = useState<string>(
     campaignGear?.customReq !== null && campaignGear?.customReq !== undefined
       ? String(campaignGear.customReq)
       : String(item.reqcost)
   )
-  const [savingConfig, setSavingConfig] = useState(false)
-  const [configErr, setConfigErr]       = useState<string | null>(null)
+  const [saving, setSaving]   = useState(false)
+  const [configErr, setConfigErr] = useState<string | null>(null)
 
   // Buy state
-  const [buyQty, setBuyQty]   = useState(1)
-  const [buying, setBuying]   = useState(false)
-  const [buyErr, setBuyErr]   = useState<string | null>(null)
+  const [buyQty, setBuyQty]       = useState(1)
+  const [buying, setBuying]       = useState(false)
+  const [buyErr, setBuyErr]       = useState<string | null>(null)
   const [buySuccess, setBuySuccess] = useState(false)
 
-  const parsedReq = parseInt(customReq, 10)
+  const parsedReq = parseInt(reqVal, 10)
   const validReq  = !isNaN(parsedReq) && parsedReq >= 0
 
-  async function handleSaveConfig() {
-    setSavingConfig(true)
+  async function saveConfig(patch: { customName?: string | null; customReq?: number | null }) {
+    setSaving(true)
     setConfigErr(null)
     try {
-      const patch: { customName?: string | null; customReq?: number | null } = {}
-      const trimmed = customName.trim()
-      patch.customName = trimmed.length > 0 ? trimmed : null
-      patch.customReq  = validReq ? parsedReq : null
       await updateGearConfig(item.name, patch)
     } catch (e) {
       setConfigErr(e instanceof Error ? e.message : 'Save failed')
     } finally {
-      setSavingConfig(false)
+      setSaving(false)
     }
+  }
+
+  function handleNameBlur() {
+    const trimmed = nameVal.trim()
+    const next = trimmed.length > 0 && trimmed !== item.name ? trimmed : null
+    if (next !== (campaignGear?.customName ?? null)) {
+      void saveConfig({ customName: next })
+    }
+  }
+
+  function handleReqBlur() {
+    if (!validReq) return
+    const next = parsedReq !== item.reqcost ? parsedReq : null
+    if (next !== (campaignGear?.customReq ?? null)) {
+      void saveConfig({ customReq: next })
+    }
+  }
+
+  async function handleReset() {
+    setNameVal(item.name)
+    setReqVal(String(item.reqcost))
+    await saveConfig({ customName: null, customReq: null })
   }
 
   async function handleBuy(qty: number) {
@@ -78,8 +97,39 @@ export default function GearDetailModal({ item, campaignGear, reqEnabled, reqPoo
   }
 
   return (
-    <Modal open onClose={onClose} title={effectiveName} width="min(92vw, 480px)">
+    <Modal open onClose={onClose} width="min(92vw, 480px)">
       <div className="flex flex-col gap-5">
+
+        {/* Editable title row */}
+        <div className="flex items-center gap-2 -mt-1">
+          <input
+            type="text"
+            value={nameVal}
+            onChange={e => setNameVal(e.target.value)}
+            onBlur={handleNameBlur}
+            onKeyDown={e => { if (e.key === 'Enter') e.currentTarget.blur() }}
+            disabled={saving}
+            className="flex-1 bg-transparent text-ink text-[14px] font-mono font-bold focus:outline-none border-b border-transparent focus:border-accent transition-colors placeholder:text-muted"
+          />
+          {isCustomised && (
+            <button
+              type="button"
+              onClick={() => void handleReset()}
+              disabled={saving}
+              className="shrink-0 px-2 py-0.5 text-[9px] border border-border text-muted font-mono hover:border-bad hover:text-bad transition-colors"
+            >
+              RESET
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={onClose}
+            className="shrink-0 text-muted hover:text-ink font-mono text-[14px] leading-none px-1 transition-colors"
+            aria-label="Close"
+          >
+            ✕
+          </button>
+        </div>
 
         {/* Info */}
         <section className="flex flex-col gap-2">
@@ -96,52 +146,28 @@ export default function GearDetailModal({ item, campaignGear, reqEnabled, reqPoo
               ))}
             </div>
           )}
-          <div className="flex gap-4 text-[10px] text-muted mt-1">
+          <div className="flex gap-4 items-center text-[10px] text-muted mt-1">
             {item.mobility_cost !== 0 && (
               <span>MOB <span className="text-ink">{item.mobility_cost}</span></span>
             )}
             {item.max_uses > 0 && (
               <span>Uses <span className="text-ink">{item.max_uses}</span></span>
             )}
-          </div>
-        </section>
-
-        <div className="border-t border-border" />
-
-        {/* Configure */}
-        <section className="flex flex-col gap-3">
-          <div className="lbl text-[10px]">Configure</div>
-          <div className="flex flex-col gap-2">
-            <label className="flex flex-col gap-1">
-              <span className="text-[10px] text-muted">Custom name</span>
-              <input
-                type="text"
-                value={customName}
-                onChange={e => setCustomName(e.target.value)}
-                placeholder={item.name}
-                className="bg-bg border border-border rounded text-ink text-[12px] font-mono px-2 py-1 focus:outline-none focus:border-accent"
-              />
-            </label>
-            <label className="flex flex-col gap-1">
-              <span className="text-[10px] text-muted">REQ cost</span>
+            <span className="flex items-center gap-1">
+              REQ
               <input
                 type="number"
                 min={0}
-                value={customReq}
-                onChange={e => setCustomReq(e.target.value)}
-                className="bg-bg border border-border rounded text-ink text-[12px] font-mono px-2 py-1 w-24 focus:outline-none focus:border-accent"
+                value={reqVal}
+                onChange={e => setReqVal(e.target.value)}
+                onBlur={handleReqBlur}
+                onKeyDown={e => { if (e.key === 'Enter') e.currentTarget.blur() }}
+                disabled={saving}
+                className="w-12 bg-transparent text-ink text-[10px] font-mono border-b border-transparent focus:border-accent focus:outline-none text-center"
               />
-            </label>
+            </span>
           </div>
-          {configErr && <div className="text-[11px] text-bad">{configErr}</div>}
-          <button
-            type="button"
-            onClick={() => void handleSaveConfig()}
-            disabled={savingConfig}
-            className="self-start px-3 py-1 text-[11px] border border-accent text-accent font-mono hover:bg-accent/10"
-          >
-            {savingConfig ? 'SAVING…' : 'SAVE CONFIG'}
-          </button>
+          {configErr && <div className="text-[10px] text-bad">{configErr}</div>}
         </section>
 
         {/* Stock — only when REQ is enabled and effective cost > 0 */}
@@ -158,24 +184,6 @@ export default function GearDetailModal({ item, campaignGear, reqEnabled, reqPoo
               <div className="flex flex-col gap-2">
                 <div className="text-[10px] text-muted">Buy more ({effectiveReq} REQ each)</div>
                 <div className="flex items-center gap-2">
-                  {BUY_QTYS.map(qty => {
-                    const cost      = qty * effectiveReq
-                    const canAfford = reqPool >= cost
-                    return (
-                      <button
-                        key={qty}
-                        type="button"
-                        onClick={() => setBuyQty(qty)}
-                        className={`px-3 py-1 text-[11px] border font-mono transition-colors ${
-                          buyQty === qty
-                            ? 'border-warn text-warn'
-                            : 'border-border text-muted hover:border-accent hover:text-ink'
-                        } ${!canAfford ? 'opacity-40' : ''}`}
-                      >
-                        +{qty} ({cost} REQ)
-                      </button>
-                    )
-                  })}
                   <input
                     type="number"
                     min={1}
