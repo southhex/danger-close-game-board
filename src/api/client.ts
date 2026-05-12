@@ -260,22 +260,41 @@ export async function patchReqApi(campaignId: string, req: number): Promise<{ id
   return jsonOrThrow<{ id: string; req: number }>(res, 'Patch REQ failed')
 }
 
-export interface SpendReqResult {
-  id: string
-  req: number
-  trooper: { id: string; data: Record<string, unknown> }
+export interface BuyGearResult {
+  req:  number
+  gear: { gearName: string; stock: number; customName: string | null; customReq: number | null }
 }
 
-export async function spendReqApi(
+export async function buyGearApi(
   campaignId: string,
-  body: { amount: number; trooperId: string; gearChange: { slot: string; name: string | null } },
-): Promise<SpendReqResult> {
-  const res = await apiFetch(`/api/campaigns/${campaignId}/req/spend`, {
+  body: { gearName: string; qty: number; catalogueReq: number },
+): Promise<BuyGearResult> {
+  const res = await apiFetch(`/api/campaigns/${campaignId}/gear/buy`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   })
-  return jsonOrThrow<SpendReqResult>(res, 'Spend REQ failed')
+  return jsonOrThrow<BuyGearResult>(res, 'Buy gear failed')
+}
+
+export interface GearConfigResult {
+  gearName: string
+  stock: number
+  customName: string | null
+  customReq: number | null
+}
+
+export async function patchGearConfigApi(
+  campaignId: string,
+  gearName: string,
+  patch: { customName?: string | null; customReq?: number | null },
+): Promise<GearConfigResult> {
+  const res = await apiFetch(`/api/campaigns/${campaignId}/gear/${encodeURIComponent(gearName)}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(patch),
+  })
+  return jsonOrThrow<GearConfigResult>(res, 'Patch gear config failed')
 }
 
 export async function patchCampaignSettingsApi(

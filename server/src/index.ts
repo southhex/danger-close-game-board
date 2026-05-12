@@ -9,6 +9,7 @@ import {
   squadRoutes,
   missionRoutes,
   reqRoutes,
+  gearRoutes,
 } from './routes/index.js'
 
 const isProduction = process.env.NODE_ENV === 'production'
@@ -24,6 +25,7 @@ app.route('/api/bootstrap', bootstrapRoutes)
 app.route('/api', squadRoutes)
 app.route('/api', missionRoutes)
 app.route('/api', reqRoutes)
+app.route('/api', gearRoutes)
 
 // In production, serve the Vite-built frontend for all non-/api paths
 if (isProduction) {

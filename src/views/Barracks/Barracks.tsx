@@ -18,7 +18,7 @@ export default function Barracks() {
   const openSquadEdit = (id: string) => { setSquadEditorId(id); setSquadEditorOpen(true) }
   const handleNewSquad = async () => { await createSquad({ name: `Squad ${squads.length + 1}` }) }
 
-  const unassigned = troopers.filter(t => t.squadId === null)
+  const unassigned = troopers.filter(t => t.squadId == null)
 
   return (
     <div className="p-4">

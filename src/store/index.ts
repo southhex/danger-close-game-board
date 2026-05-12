@@ -3,7 +3,7 @@ import type {
   AppState, Trooper, MissionState, MissionSector, MissionPhase, DiceRoll, ApplyAdvancePayload, View,
   EngagementState, TrooperIntent, OffenseResult, DefenseResult, EnemyTactic,
   HardTarget, AttachedForce, TrooperStatus,
-  Campaign, User, AuthStatus,
+  Campaign, User, AuthStatus, CampaignGearItem,
   Squad, Mission, Airspace, BoonType,
 } from '../types'
 import { gearByName } from '../data/gear'
@@ -18,7 +18,7 @@ import {
   createSquadApi, patchSquadApi, deleteSquadApi,
   createMissionApi, patchMissionBlueprintApi, deleteMissionApi,
   deployMissionApi, completeMissionApi,
-  patchReqApi, spendReqApi, patchCampaignSettingsApi,
+  patchReqApi, buyGearApi, patchGearConfigApi, patchCampaignSettingsApi,
 } from '../api/client'
 import { fetchBootstrap, SetupRequiredError } from '../api/bootstrap'
 import { scheduleSync } from '../api/sync'
@@ -141,7 +141,8 @@ interface Store extends AppState {
   completeMission: (missionId: string, body: { fieldReport: string; outcome: 'victory' | 'defeat' | 'aborted' }) => Promise<void>
 
   setReq: (req: number) => Promise<void>
-  spendReq: (amount: number, trooperId: string, gearChange: { slot: string; name: string | null }) => Promise<void>
+  buyGearStock: (gearName: string, qty: number, catalogueReq: number) => Promise<void>
+  updateGearConfig: (gearName: string, patch: { customName?: string | null; customReq?: number | null }) => Promise<void>
   setCampaignAirspace: (airspace: Airspace) => Promise<void>
   setCampaignReqEnabled: (enabled: boolean) => Promise<void>
 }
@@ -321,6 +322,7 @@ export const useStore = create<Store>()(
     troopers: [],
     mission: null,
     diceHistory: [],
+    campaignGear: [],
     squads: [],
     missions: [],
     currentView: 'barracks',
@@ -375,6 +377,7 @@ export const useStore = create<Store>()(
         troopers: [],
         mission: null,
         diceHistory: [],
+        campaignGear: [],
         squads: [],
         missions: [],
       })
@@ -465,6 +468,7 @@ export const useStore = create<Store>()(
         squads?: Array<{ id: string; data: Record<string, unknown>; created_at?: string }>
         missions?: Array<{ id: string; status: string; name: string; data?: Record<string, unknown>; completed_at: string | null; created_at: string }>
         currentMission?: { id: string; status: string; data: Record<string, unknown>; completed_at: string | null; created_at: string } | null
+        campaignGear?: CampaignGearItem[]
       }
 
       // Hydrate squads — server returns { id, data: { name, callsign, ... } }
@@ -543,6 +547,7 @@ export const useStore = create<Store>()(
         troopers: data.troopers ?? [],
         mission: hydratedMission,
         diceHistory: data.diceHistory ?? [],
+        campaignGear: data.campaignGear ?? [],
         squads,
         missions,
         campaigns: updatedCampaign
@@ -1468,20 +1473,42 @@ export const useStore = create<Store>()(
       }))
     },
 
-    spendReq: async (amount, trooperId, gearChange) => {
+    buyGearStock: async (gearName, qty, catalogueReq) => {
       const campaignId = get().currentCampaignId
       if (!campaignId) return
-      const campaign = get().campaigns.find(c => c.id === campaignId)
-      if (campaign?.req !== undefined && campaign.req < amount) {
-        throw new Error('Insufficient REQ')
-      }
-      const result = await spendReqApi(campaignId, { amount, trooperId, gearChange })
-      set(s => ({
-        campaigns: s.campaigns.map(c => c.id === campaignId ? { ...c, req: result.req } : c),
-        troopers: s.troopers.map(t =>
-          t.id === trooperId ? { ...t, [gearChange.slot]: gearChange.name ?? '' } as Trooper : t,
-        ),
-      }))
+      const result = await buyGearApi(campaignId, { gearName, qty, catalogueReq })
+      set(s => {
+        const existing = s.campaignGear.find(g => g.gearName === gearName)
+        const updated: CampaignGearItem = existing
+          ? { ...existing, stock: result.gear.stock }
+          : { gearName, stock: result.gear.stock, customName: result.gear.customName, customReq: result.gear.customReq }
+        return {
+          campaigns: s.campaigns.map(c => c.id === campaignId ? { ...c, req: result.req } : c),
+          campaignGear: existing
+            ? s.campaignGear.map(g => g.gearName === gearName ? updated : g)
+            : [...s.campaignGear, updated],
+        }
+      })
+    },
+
+    updateGearConfig: async (gearName, patch) => {
+      const campaignId = get().currentCampaignId
+      if (!campaignId) return
+      const result = await patchGearConfigApi(campaignId, gearName, patch)
+      set(s => {
+        const existing = s.campaignGear.find(g => g.gearName === gearName)
+        const updated: CampaignGearItem = {
+          gearName,
+          stock:      result.stock,
+          customName: result.customName,
+          customReq:  result.customReq,
+        }
+        return {
+          campaignGear: existing
+            ? s.campaignGear.map(g => g.gearName === gearName ? updated : g)
+            : [...s.campaignGear, updated],
+        }
+      })
     },
 
     setCampaignAirspace: async (airspace) => {

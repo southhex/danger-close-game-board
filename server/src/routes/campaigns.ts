@@ -39,6 +39,13 @@ interface DiceRollRow {
   data: string
 }
 
+interface GearRow {
+  gear_name:   string
+  stock:       number
+  custom_name: string | null
+  custom_req:  number | null
+}
+
 export function createCampaignRoutes(db: Database = defaultDb): Hono {
   const router = new Hono()
   const requireAuth = makeRequireAuth(db)
@@ -118,6 +125,12 @@ export function createCampaignRoutes(db: Database = defaultDb): Hono {
       )
       .all(id)
 
+    const gearRows = db
+      .prepare<[string], GearRow>(
+        'SELECT gear_name, stock, custom_name, custom_req FROM campaign_gear WHERE campaign_id = ?'
+      )
+      .all(id)
+
     const missionsLite = missionRows.map((m) => {
       const data = JSON.parse(m.data) as Record<string, unknown>
       return {
@@ -158,7 +171,13 @@ export function createCampaignRoutes(db: Database = defaultDb): Hono {
         currentMissionId: campaign.current_mission_id,
         created_at: campaign.created_at,
       },
-      troopers: trooperRows.map((r) => JSON.parse(r.data) as unknown),
+      troopers: trooperRows.map((r) => {
+        const t = JSON.parse(r.data) as Record<string, unknown>
+        if (!('squadId' in t))      t.squadId      = null
+        if (!('recovering' in t))   t.recovering   = false
+        if (!('wasBleedingOut' in t)) t.wasBleedingOut = false
+        return t
+      }),
       diceHistory: diceRollRows.map((r) => JSON.parse(r.data) as unknown),
       squads: squadRows.map((s) => ({
         id: s.id,
@@ -167,6 +186,12 @@ export function createCampaignRoutes(db: Database = defaultDb): Hono {
       })),
       missions: missionsLite,
       currentMission,
+      campaignGear: gearRows.map(g => ({
+        gearName:   g.gear_name,
+        stock:      g.stock,
+        customName: g.custom_name,
+        customReq:  g.custom_req,
+      })),
     })
   })
 

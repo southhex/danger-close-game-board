@@ -24,6 +24,13 @@ export interface GearItem {
   }
 }
 
+export interface CampaignGearItem {
+  gearName:   string
+  stock:      number
+  customName: string | null
+  customReq:  number | null
+}
+
 export interface Perk {
   name: string
   description: string
@@ -275,6 +282,7 @@ export interface AppState {
   troopers: Trooper[]
   mission: MissionState | null
   diceHistory: DiceRoll[]
+  campaignGear: CampaignGearItem[]
   // Stage 2 additions — optional during cutover
   squads?: Squad[]
   missions?: Mission[]

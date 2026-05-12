@@ -82,7 +82,7 @@ export default function App() {
   if (authStatus === 'setup_required') return <ToastProvider><Setup /></ToastProvider>
   if (authStatus === 'unauthenticated') return <ToastProvider><Login /></ToastProvider>
 
-  const activeTrooperCount = allTroopers.filter(t => t.squadId !== null).length
+  const activeTrooperCount = allTroopers.filter(t => t.squadId != null).length
   const currentCampaign    = campaigns.find(c => c.id === currentCampaignId) ?? null
   const hasLiveMission     = !!currentCampaign?.currentMissionId
 

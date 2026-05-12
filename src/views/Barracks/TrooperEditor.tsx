@@ -3,7 +3,7 @@ import { Modal, ConfirmDialog, Dropdown, Stepper } from '../../components'
 import { gearByName, gearByType } from '../../data/gear'
 import { TAGS } from '../../data/tags'
 import { baseMobilityFromCosts } from '../../utils/gameRules'
-import type { Trooper } from '../../types'
+import type { Trooper, CampaignGearItem, GearItem } from '../../types'
 import { useStore } from '../../store'
 
 const TAG_OPTIONS = [
@@ -27,24 +27,58 @@ const EMPTY: Omit<Trooper, 'id'> = {
   suppressed: false, def_modifier: 0, special_weapon_uses: -1, special_gear_uses: -1,
 }
 
-function optionsFor(type: 'weapon' | 'specialweapon' | 'specialequipment' | 'armor', includeNone = false) {
+type GearSlot = 'armor' | 'weapon' | 'special_weapon' | 'special_gear'
+const SLOT_FOR_TYPE: Record<GearItem['geartype'], GearSlot> = {
+  armor: 'armor', weapon: 'weapon', specialweapon: 'special_weapon', specialequipment: 'special_gear',
+}
+
+function effectiveReq(g: GearItem, cg: CampaignGearItem | undefined): number {
+  return cg?.customReq !== null && cg?.customReq !== undefined ? cg.customReq : g.reqcost
+}
+
+function buildOptions(
+  type: GearItem['geartype'],
+  currentSlotValue: string,
+  allTroopers: Trooper[],
+  trooperId: string | null,
+  campaignGear: CampaignGearItem[],
+  reqEnabled: boolean,
+  includeNone = false,
+) {
+  const slot = SLOT_FOR_TYPE[type]
   const base = includeNone ? [{ value: '', label: '— None —' }] : []
   return base.concat(gearByType(type).map(g => {
+    const cg         = campaignGear.find(c => c.gearName === g.name)
+    const req        = effectiveReq(g, cg)
+    const tracked    = reqEnabled && req > 0
+    const stock      = cg?.stock ?? 0
+    // Count other troopers (not this one) who have this item in this slot
+    const otherCount = allTroopers.filter(t => t.id !== trooperId && t[slot] === g.name).length
+    const available  = tracked ? Math.max(0, stock - otherCount) : Infinity
+    const isCurrent  = currentSlotValue === g.name
+    const disabled   = tracked && available === 0 && !isCurrent
+
     const parts: string[] = [g.name]
     if (g.mobility_cost !== 0) parts.push(`MOB ${g.mobility_cost}`)
-    if (g.reqcost !== 0) parts.push(`REQ ${g.reqcost}`)
+    if (req !== 0) parts.push(`REQ ${req}`)
     if (g.max_uses > 0) parts.push(`USES ${g.max_uses}`)
-    return { value: g.name, label: parts.join(' · ') }
+    if (tracked && !isCurrent) parts.push(available > 0 ? `AVAIL ${available}` : 'OUT OF STOCK')
+
+    return { value: g.name, label: parts.join(' · '), disabled }
   }))
 }
 
 export default function TrooperEditor({ open, trooperId, onClose }: Props) {
-  const allTroopers = useStore(s => s.troopers)
-  const squads = useStore(s => s.squads)
-  const existing = trooperId ? allTroopers.find(t => t.id === trooperId) : undefined
-  const addTrooper = useStore(s => s.addTrooper)
+  const allTroopers  = useStore(s => s.troopers)
+  const squads       = useStore(s => s.squads)
+  const campaignGear = useStore(s => s.campaignGear)
+  const campaigns    = useStore(s => s.campaigns)
+  const currentCampaignId = useStore(s => s.currentCampaignId)
+  const existing    = trooperId ? allTroopers.find(t => t.id === trooperId) : undefined
+  const addTrooper  = useStore(s => s.addTrooper)
   const updateTrooper = useStore(s => s.updateTrooper)
   const deleteTrooper = useStore(s => s.deleteTrooper)
+  const reqEnabled  = campaigns.find(c => c.id === currentCampaignId)?.reqEnabled ?? false
 
   const [form, setForm] = useState<Omit<Trooper, 'id'>>(EMPTY)
   const [confirmDelete, setConfirmDelete] = useState(false)
@@ -140,16 +174,24 @@ export default function TrooperEditor({ open, trooperId, onClose }: Props) {
 
           <div className="col-span-2 border-t border-border my-2" />
 
-          <Dropdown className="col-span-2" label="ARMOR" value={form.armor} options={optionsFor('armor')} onChange={v => set('armor', v)} />
+          <Dropdown className="col-span-2" label="ARMOR" value={form.armor}
+            options={buildOptions('armor', form.armor, allTroopers, trooperId, campaignGear, reqEnabled)}
+            onChange={v => set('armor', v)} />
           {armorGear && <div className="col-span-2 text-[10px] text-muted -mt-1">{armorGear.properties}</div>}
 
-          <Dropdown className="col-span-2" label="WEAPON" value={form.weapon} options={optionsFor('weapon')} onChange={v => set('weapon', v)} />
+          <Dropdown className="col-span-2" label="WEAPON" value={form.weapon}
+            options={buildOptions('weapon', form.weapon, allTroopers, trooperId, campaignGear, reqEnabled)}
+            onChange={v => set('weapon', v)} />
           {weaponGear && <div className="col-span-2 text-[10px] text-muted -mt-1">{weaponGear.properties}</div>}
 
-          <Dropdown className="col-span-2" label="SPECIAL WEAPON" value={form.special_weapon} options={optionsFor('specialweapon', true)} onChange={v => set('special_weapon', v)} />
+          <Dropdown className="col-span-2" label="SPECIAL WEAPON" value={form.special_weapon}
+            options={buildOptions('specialweapon', form.special_weapon, allTroopers, trooperId, campaignGear, reqEnabled, true)}
+            onChange={v => set('special_weapon', v)} />
           {swGear && <div className="col-span-2 text-[10px] text-muted -mt-1">{swGear.properties}</div>}
 
-          <Dropdown className="col-span-2" label="SPECIAL GEAR" value={form.special_gear} options={optionsFor('specialequipment', true)} onChange={v => set('special_gear', v)} />
+          <Dropdown className="col-span-2" label="SPECIAL GEAR" value={form.special_gear}
+            options={buildOptions('specialequipment', form.special_gear, allTroopers, trooperId, campaignGear, reqEnabled, true)}
+            onChange={v => set('special_gear', v)} />
           {sgGear && <div className="col-span-2 text-[10px] text-muted -mt-1">{sgGear.properties}</div>}
 
           <div className="col-span-2 flex items-center justify-between border-t border-border pt-2 mt-1">
