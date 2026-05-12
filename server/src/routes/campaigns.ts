@@ -302,6 +302,92 @@ export function createCampaignRoutes(db: Database = defaultDb): Hono {
     return c.json({ ok: true })
   })
 
+  // POST /:id/duplicate — full data copy to a new campaign
+  router.post('/:id/duplicate', requireAuth, (c) => {
+    const oldId = c.req.param('id')
+
+    const campaign = db
+      .prepare<[string], CampaignRow>(
+        'SELECT id, name, description, default_airspace, req_enabled, req FROM campaigns WHERE id = ?'
+      )
+      .get(oldId)
+
+    if (!campaign) return c.json({ error: 'Campaign not found' }, 404)
+
+    const trooperRows = db
+      .prepare<[string], TrooperRow>('SELECT id, data FROM troopers WHERE campaign_id = ?')
+      .all(oldId)
+
+    const squadRows = db
+      .prepare<[string], SquadRow>('SELECT id, data FROM squads WHERE campaign_id = ?')
+      .all(oldId)
+
+    const missionRows = db
+      .prepare<[string], MissionRow>(
+        "SELECT id, status, data, completed_at FROM missions WHERE campaign_id = ? AND status != 'live'"
+      )
+      .all(oldId)
+
+    const gearRows = db
+      .prepare<[string], GearRow>(
+        'SELECT gear_name, stock, custom_name, custom_req FROM campaign_gear WHERE campaign_id = ?'
+      )
+      .all(oldId)
+
+    const newCampaignId = randomUUID()
+    const trooperIdMap = new Map(trooperRows.map(r => [r.id, randomUUID()]))
+    const squadIdMap   = new Map(squadRows.map(r => [r.id, randomUUID()]))
+
+    db.transaction(() => {
+      db.prepare<[string, string, string, string, number, number]>(
+        'INSERT INTO campaigns (id, name, description, default_airspace, req_enabled, req) VALUES (?, ?, ?, ?, ?, ?)'
+      ).run(newCampaignId, `${campaign.name} (Copy)`, campaign.description, campaign.default_airspace, campaign.req_enabled, campaign.req)
+
+      for (const row of trooperRows) {
+        const data = JSON.parse(row.data) as Record<string, unknown>
+        const newId = trooperIdMap.get(row.id)!
+        data['id'] = newId
+        if (typeof data['squadId'] === 'string' && squadIdMap.has(data['squadId'])) {
+          data['squadId'] = squadIdMap.get(data['squadId'])
+        }
+        db.prepare<[string, string, string]>(
+          'INSERT INTO troopers (id, campaign_id, data) VALUES (?, ?, ?)'
+        ).run(newId, newCampaignId, JSON.stringify(data))
+      }
+
+      for (const row of squadRows) {
+        const data = JSON.parse(row.data) as Record<string, unknown>
+        const newId = squadIdMap.get(row.id)!
+        if (typeof data['sergeantId'] === 'string' && trooperIdMap.has(data['sergeantId'])) {
+          data['sergeantId'] = trooperIdMap.get(data['sergeantId'])
+        }
+        db.prepare<[string, string, string]>(
+          'INSERT INTO squads (id, campaign_id, data) VALUES (?, ?, ?)'
+        ).run(newId, newCampaignId, JSON.stringify(data))
+      }
+
+      for (const row of missionRows) {
+        const newId = randomUUID()
+        const data = JSON.parse(row.data) as Record<string, unknown>
+        data['id'] = newId
+        if (typeof data['squadId'] === 'string' && squadIdMap.has(data['squadId'])) {
+          data['squadId'] = squadIdMap.get(data['squadId'])
+        }
+        db.prepare<[string, string, string, string, string | null]>(
+          'INSERT INTO missions (id, campaign_id, status, data, completed_at) VALUES (?, ?, ?, ?, ?)'
+        ).run(newId, newCampaignId, row.status, JSON.stringify(data), row.completed_at)
+      }
+
+      for (const row of gearRows) {
+        db.prepare<[string, string, number, string | null, number | null]>(
+          'INSERT INTO campaign_gear (campaign_id, gear_name, stock, custom_name, custom_req) VALUES (?, ?, ?, ?, ?)'
+        ).run(newCampaignId, row.gear_name, row.stock, row.custom_name, row.custom_req)
+      }
+    })()
+
+    return c.json({ id: newCampaignId, name: `${campaign.name} (Copy)` })
+  })
+
   // PUT /:id/state — full state replacement
   router.put('/:id/state', requireAuth, async (c) => {
     const id = c.req.param('id')

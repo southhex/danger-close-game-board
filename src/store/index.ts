@@ -47,6 +47,7 @@ interface Store extends AppState {
   // Campaign actions
   createCampaign: (name: string, description?: string) => Promise<Campaign>
   deleteCampaign: (id: string) => Promise<void>
+  duplicateCampaign: (id: string) => Promise<string>
   renameCampaign: (id: string, name: string, description?: string) => Promise<void>
   selectCampaign: (id: string) => Promise<void>
 
@@ -436,6 +437,18 @@ export const useStore = create<Store>()(
         const currentCampaignId = s.currentCampaignId === id ? null : s.currentCampaignId
         return { campaigns, currentCampaignId }
       })
+    },
+
+    duplicateCampaign: async (id) => {
+      const res = await apiFetch(`/api/campaigns/${id}/duplicate`, { method: 'POST' })
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        throw new Error((body as { error?: string }).error ?? 'Duplicate campaign failed')
+      }
+      const newCampaign = await res.json() as { id: string; name: string }
+      set(s => ({ campaigns: [...s.campaigns, { id: newCampaign.id, name: newCampaign.name, description: '', req: 0, reqEnabled: false } as Campaign] }))
+      await get().selectCampaign(newCampaign.id)
+      return newCampaign.id
     },
 
     renameCampaign: async (id, name, description) => {
