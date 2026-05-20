@@ -54,10 +54,11 @@ export function createGearRoutes(db: Database = defaultDb): Hono {
     // Effective REQ cost comes from custom_req if set; otherwise the caller
     // supplies the catalogue default via body. We trust the client here because
     // the catalogue lives on the frontend — the server only enforces what it knows.
+    const catalogueReq = typeof body.catalogueReq === 'number' ? body.catalogueReq : 0
     const effectiveReq: number =
       existing?.custom_req !== null && existing?.custom_req !== undefined
         ? existing.custom_req
-        : (typeof body['catalogueReq'] === 'number' ? (body['catalogueReq'] as number) : 0)
+        : catalogueReq
 
     const totalCost = effectiveReq * qty
 
