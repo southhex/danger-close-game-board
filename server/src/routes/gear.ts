@@ -29,9 +29,9 @@ export function createGearRoutes(db: Database = defaultDb): Hono {
       .get(campaignId)
     if (!campaign) return c.json({ error: 'Campaign not found' }, 404)
 
-    let body: { gearName?: unknown; qty?: unknown }
+    let body: { gearName?: unknown; qty?: unknown; catalogueReq?: unknown }
     try {
-      body = await c.req.json<{ gearName?: unknown; qty?: unknown }>()
+      body = await c.req.json<{ gearName?: unknown; qty?: unknown; catalogueReq?: unknown }>()
     } catch {
       return c.json({ error: 'Invalid JSON body' }, 400)
     }
