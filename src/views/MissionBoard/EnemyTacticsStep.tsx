@@ -38,13 +38,26 @@ export default function EnemyTacticsStep({ engagement, troopers, sector, addRoll
   const endEngagement = useStore(s => s.endEngagement)
   const nullifyTactic = useStore(s => s.nullifyTactic)
   const missionMomentum = useStore(s => s.mission?.momentum ?? 0)
+  const missionSquadId = useStore(s => s.mission?.squadId ?? null)
+  const squads = useStore(s => s.squads)
 
   const [naturalD6, setNaturalD6] = useState<number | null>(null)
   const [inputValue, setInputValue] = useState('')
   const [applied, setApplied] = useState(false)
   const [repositionTrooperId, setRepositionTrooperId] = useState<string | null>(null)
   const [scatterTrooperId, setScatterTrooperId] = useState<string | null>(null)
-  const [nullifyTrooperId, setNullifyTrooperId] = useState<string>('')
+  const [showTacticTable, setShowTacticTable] = useState(false)
+
+  // SRD ch. 06 — only the Sergeant may nullify a Tactic, and only if not BO/Suppressed.
+  const sergeantId = missionSquadId ? squads.find(s => s.id === missionSquadId)?.sergeantId ?? null : null
+  const sergeant = sergeantId ? troopers.find(t => t.id === sergeantId) ?? null : null
+  const nullifyDisabledReason =
+    !sergeant ? 'no sergeant in active squad'
+    : sergeant.status === 'bleedingout' ? 'Sergeant bleeding out'
+    : sergeant.suppressed ? 'Sergeant suppressed'
+    : sergeant.grit <= 0 ? 'Sergeant has no grit'
+    : null
+  const canNullify = nullifyDisabledReason === null
 
   const total = naturalD6 !== null ? naturalD6 + sector.tl : null
   const tactic: EnemyTactic | null = total !== null ? enemyTacticFromRoll(total) : null
@@ -102,13 +115,10 @@ export default function EnemyTacticsStep({ engagement, troopers, sector, addRoll
   }
 
   function handleNullify() {
-    if (!nullifyTrooperId) return
-    nullifyTactic(nullifyTrooperId)
+    if (!sergeant || !canNullify) return
+    nullifyTactic(sergeant.id)
     setApplied(true)  // prevent resolveEnemyTactics from being called after nullify
-    setNullifyTrooperId('')
   }
-
-  const nullifiabletroopers = troopers.filter(t => t.grit > 0 && t.status !== 'bleedingout' && !t.suppressed)
 
   const canApply =
     naturalD6 !== null &&
@@ -120,9 +130,29 @@ export default function EnemyTacticsStep({ engagement, troopers, sector, addRoll
   return (
     <div className="bg-surface border border-border">
       {/* Header */}
-      <div className="px-3 py-2 border-b border-border">
+      <div className="px-3 py-2 border-b border-border flex items-center justify-between">
         <span className="lbl text-[10px]">EXCHANGE {engagement.exchangeNumber} — ENEMY TACTICS</span>
+        <button
+          onClick={() => setShowTacticTable(s => !s)}
+          className="text-[10px] text-muted hover:text-ink"
+        >
+          {showTacticTable ? '▴ HIDE' : '▾ TACTIC TABLE'}
+        </button>
       </div>
+
+      {/* Tactic table (collapsible) */}
+      {showTacticTable && (
+        <div className="px-3 py-2 border-b border-border text-[10px] text-muted">
+          <div className="lbl text-[9px] mb-1">1D6 + TL → TACTIC</div>
+          <div>2–4 · NONE — {TACTIC_DESCRIPTIONS.none}</div>
+          <div>5 · REPOSITION — {TACTIC_DESCRIPTIONS.reposition}</div>
+          <div>6 · SCATTER — {TACTIC_DESCRIPTIONS.scatter}</div>
+          <div>7 · PINNED DOWN — {TACTIC_DESCRIPTIONS.pinned_down}</div>
+          <div>8 · ENCIRCLE — {TACTIC_DESCRIPTIONS.encircle}</div>
+          <div>9 · PUSH FORWARD — {TACTIC_DESCRIPTIONS.push_forward}</div>
+          <div>10+ · FALL BACK — {TACTIC_DESCRIPTIONS.fall_back}</div>
+        </div>
+      )}
 
       {/* Info */}
       <div className="px-3 py-2 border-b border-border">
@@ -244,34 +274,23 @@ export default function EnemyTacticsStep({ engagement, troopers, sector, addRoll
             <div className="text-[9px] text-ok">TACTIC APPLIED</div>
           )}
 
-          {/* Nullify section */}
+          {/* Nullify section — Sergeant only, per SRD ch. 06 */}
           {tactic !== 'none' && !applied && (
             <div className="border-t border-border pt-2 flex flex-col gap-1">
-              <div className="lbl text-[9px]">NULLIFY TACTIC</div>
+              <div className="lbl text-[9px]">NULLIFY TACTIC — SERGEANT</div>
               <div className="text-[9px] text-muted">Pressure increase still occurs.</div>
-              {nullifiabletroopers.length === 0 ? (
-                <div className="text-[9px] text-bad">No trooper able to nullify (need Grit &gt; 0, not suppressed, not bleeding out).</div>
-              ) : (
-                <div className="flex items-center gap-2 flex-wrap">
-                  <select
-                    value={nullifyTrooperId}
-                    onChange={e => setNullifyTrooperId(e.target.value)}
-                    className="bg-bg border border-border text-ink text-[9px] px-1 py-0.5"
-                  >
-                    <option value="">— pick trooper —</option>
-                    {nullifiabletroopers.map(t => (
-                      <option key={t.id} value={t.id}>{t.name} (Grit {t.grit})</option>
-                    ))}
-                  </select>
-                  <button
-                    disabled={!nullifyTrooperId}
-                    onClick={handleNullify}
-                    className="text-[9px] px-2 py-0.5 border border-bad text-bad disabled:opacity-40 disabled:cursor-not-allowed hover:bg-bad/10"
-                  >
-                    NULLIFY (SPEND 1 GRIT)
-                  </button>
-                </div>
-              )}
+              <div className="flex items-center gap-2 flex-wrap">
+                <button
+                  disabled={!canNullify}
+                  onClick={handleNullify}
+                  className="text-[9px] px-2 py-0.5 border border-bad text-bad disabled:opacity-40 disabled:cursor-not-allowed hover:bg-bad/10"
+                >
+                  NULLIFY (1 GRIT — {sergeant?.name ?? 'SERGEANT'}{sergeant ? `, ${sergeant.grit} LEFT` : ''})
+                </button>
+                {!canNullify && (
+                  <span className="text-[9px] text-muted italic">{nullifyDisabledReason}</span>
+                )}
+              </div>
             </div>
           )}
         </div>

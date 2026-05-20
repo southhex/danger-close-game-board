@@ -155,9 +155,9 @@ export default function OffenseStep({ engagement, troopers, sector, addRoll }: P
         <span className="lbl text-[10px]">EXCHANGE {engagement.exchangeNumber} — OFFENSE ROLL</span>
       </div>
 
-      {/* ATK Pool Breakdown */}
+      {/* SQUAD POOL CARD — normal Fire/etc rows + modifiers + roll plan */}
       <div className="px-3 py-2 border-b border-border">
-        <div className="lbl text-[9px] mb-1">ATK POOL</div>
+        <div className="lbl text-[9px] mb-1">SQUAD POOL</div>
         <table className="w-full text-[10px]">
           <thead>
             <tr className="text-muted text-[9px]">
@@ -167,31 +167,17 @@ export default function OffenseStep({ engagement, troopers, sector, addRoll }: P
             </tr>
           </thead>
           <tbody>
-            {normalRows.map(({ trooper, action, atk }) => (
+            {normalRows.length === 0 ? (
+              <tr>
+                <td colSpan={3} className="text-[9px] text-muted italic py-1">No squad-pool contributions this exchange.</td>
+              </tr>
+            ) : normalRows.map(({ trooper, action, atk }) => (
               <tr key={trooper.id}>
                 <td className="pr-4 text-ink py-0.5">{trooper.name}</td>
                 <td className="pr-4 text-muted py-0.5">{actionLabel(action)}</td>
                 <td className="text-right text-ink py-0.5">{atk}</td>
               </tr>
             ))}
-            {htRows.length > 0 && (
-              <>
-                <tr>
-                  <td colSpan={3} className="pt-1 pb-0.5 text-[9px] text-warn lbl">HARD TARGET POOL — separate roll, no momentum effect</td>
-                </tr>
-                {htRows.map(({ trooper, action, atk }) => {
-                  const htId = engagement.intents[trooper.id]?.hardTargetId
-                  const ht = engagement.hardTargets.find(h => h.id === htId)
-                  return (
-                    <tr key={trooper.id}>
-                      <td className="pr-4 text-ink py-0.5">{trooper.name} → {ht?.name ?? htId}</td>
-                      <td className="pr-4 text-muted py-0.5">{actionLabel(action)}</td>
-                      <td className="text-right text-ink py-0.5">{atk}</td>
-                    </tr>
-                  )
-                })}
-              </>
-            )}
           </tbody>
           <tfoot>
             <tr className="border-t border-border">
@@ -236,6 +222,64 @@ export default function OffenseStep({ engagement, troopers, sector, addRoll }: P
           </div>
         </div>
       </div>
+
+      {/* HARD TARGET POOLS — one card per targeted HT */}
+      {targetedHTs.length > 0 && (
+        <div className="px-3 py-2 border-b border-border flex flex-col gap-2">
+          {targetedHTs.map(ht => {
+            const htContribs = htRows.filter(r => engagement.intents[r.trooper.id]?.hardTargetId === ht.id)
+            const htDice = htContribs.reduce((s, r) => s + r.atk, 0)
+            const res = htResults[ht.id]
+            return (
+              <div key={ht.id} className="border border-border p-2">
+                <div className="flex items-center justify-between mb-1">
+                  <div className="lbl text-[9px] text-warn">HARD TARGET POOL — {ht.name}</div>
+                  <span className="text-[9px] text-muted">HP {ht.currentHp}/{ht.maxHp}</span>
+                </div>
+                <table className="w-full text-[10px] mb-1">
+                  <tbody>
+                    {htContribs.length === 0 ? (
+                      <tr><td colSpan={3} className="text-[9px] text-muted italic">No contributors.</td></tr>
+                    ) : htContribs.map(({ trooper, action, atk }) => (
+                      <tr key={trooper.id}>
+                        <td className="pr-4 text-ink py-0.5">{trooper.name}</td>
+                        <td className="pr-4 text-muted py-0.5">{actionLabel(action)}</td>
+                        <td className="text-right text-ink py-0.5">{atk}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  <tfoot>
+                    <tr className="border-t border-border">
+                      <td colSpan={2} className="text-muted text-[9px] pt-1 lbl">POOL</td>
+                      <td className="text-right text-ink font-bold pt-1">{htDice}D6</td>
+                    </tr>
+                  </tfoot>
+                </table>
+                <div className="text-[9px] text-muted mb-1">Roll separately. 6 = Hit · 4–5 = Hit at Cost.</div>
+                {activeResult !== null && (
+                  <div className="flex gap-1">
+                    <button
+                      onClick={() => setHtResults(prev => ({ ...prev, [ht.id]: { hits: 1, atCost: false } }))}
+                      className={`text-[9px] px-2 py-0.5 border ${res && !res.atCost && res.hits > 0 ? 'border-ok text-ok' : 'border-border text-muted hover:text-ink'}`}
+                    >HIT</button>
+                    <button
+                      onClick={() => setHtResults(prev => ({ ...prev, [ht.id]: { hits: 1, atCost: true } }))}
+                      className={`text-[9px] px-2 py-0.5 border ${res?.atCost ? 'border-warn text-warn' : 'border-border text-muted hover:text-ink'}`}
+                    >HIT AT COST</button>
+                    <button
+                      onClick={() => setHtResults(prev => ({ ...prev, [ht.id]: { hits: 0, atCost: false } }))}
+                      className={`text-[9px] px-2 py-0.5 border ${res && res.hits === 0 && !res.atCost ? 'border-bad text-bad' : 'border-border text-muted hover:text-ink'}`}
+                    >MISS</button>
+                  </div>
+                )}
+                {activeResult === null && (
+                  <div className="text-[9px] text-muted italic">Resolve after squad roll below.</div>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      )}
 
       {/* Attached Forces Commit */}
       {engagement.attachedForces.filter(af => !af.committed).length > 0 && (
@@ -355,38 +399,6 @@ export default function OffenseStep({ engagement, troopers, sector, addRoll }: P
               }
             </div>
           ) : null}
-        </div>
-      )}
-
-      {/* Hard Target Results */}
-      {targetedHTs.length > 0 && activeResult !== null && (
-        <div className="px-3 py-2 border-b border-border">
-          <div className="lbl text-[9px] mb-1">HARD TARGET HITS</div>
-          <div className="flex flex-col gap-2">
-            {targetedHTs.map(ht => {
-              const res = htResults[ht.id]
-              return (
-                <div key={ht.id} className="flex items-center gap-2 flex-wrap">
-                  <span className="text-[10px] text-ink">{ht.name}</span>
-                  <span className="text-[9px] text-muted">(6=Hit, 4-5=Hit at Cost)</span>
-                  <div className="flex gap-1">
-                    <button
-                      onClick={() => setHtResults(prev => ({ ...prev, [ht.id]: { hits: 1, atCost: false } }))}
-                      className={`text-[9px] px-2 py-0.5 border ${res && !res.atCost && res.hits > 0 ? 'border-ok text-ok' : 'border-border text-muted hover:text-ink'}`}
-                    >HIT</button>
-                    <button
-                      onClick={() => setHtResults(prev => ({ ...prev, [ht.id]: { hits: 1, atCost: true } }))}
-                      className={`text-[9px] px-2 py-0.5 border ${res?.atCost ? 'border-warn text-warn' : 'border-border text-muted hover:text-ink'}`}
-                    >HIT AT COST</button>
-                    <button
-                      onClick={() => setHtResults(prev => ({ ...prev, [ht.id]: { hits: 0, atCost: false } }))}
-                      className={`text-[9px] px-2 py-0.5 border ${res && res.hits === 0 && !res.atCost ? 'border-bad text-bad' : 'border-border text-muted hover:text-ink'}`}
-                    >MISS</button>
-                  </div>
-                </div>
-              )
-            })}
-          </div>
         </div>
       )}
 

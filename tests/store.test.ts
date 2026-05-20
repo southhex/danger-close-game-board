@@ -235,6 +235,84 @@ describe('store', () => {
     // Victory marks the active sector cleared
     expect(mission!.sectors.find(s => s.id === 's1')!.status).toBe('cleared')
   })
+
+  // ── nullifyTactic — SRD ch.06: Sergeant only, not BO/Suppressed, grit ≥ 1 ──
+  function setupTacticNullify(opts: { sergeantId: string | null; trooperOverrides?: Partial<Trooper> } = { sergeantId: 'sgt' }) {
+    useStore.setState({
+      currentCampaignId: 'c1',
+      campaigns: [{ id: 'c1', name: 'C', description: '', created_at: '', req: 0, reqEnabled: false, defaultAirspace: 'contested' }],
+      authStatus: 'authenticated',
+      user: { username: 'u' },
+      squads: [{ id: TEST_SQUAD, campaignId: 'c1', name: 'S', callsign: '', sergeantId: opts.sergeantId, perks: [], notes: '' }],
+      troopers: [
+        makeTrooper({ id: 'sgt', grit: 2, ...opts.trooperOverrides }),
+        makeTrooper({ id: 'pvt', grit: 3 }),
+      ],
+      mission: {
+        id: 'm', name: '',
+        sectors: [{ id: 's1', name: 'A', cover: 1, space: 1, tl: 2, weather: 0, status: 'active' }],
+        activeSectorId: 's1', phase: 'engagement',
+        engagement: {
+          exchangeNumber: 1, step: 'enemy_tactics', pressure: 0, hardTargets: [], attachedForces: [],
+          intents: {}, offenseResult: null, defenseResults: {}, pendingTactic: 'scatter',
+          radioStrikeCountdown: null,
+          nextExchangeModifiers: { atkPenalty: 0, flankingDefPenalty: [], mustMove: [], flankedMustFallBack: [] },
+          momentumGainedLastExchange: false, trooperDiedLastExchange: false,
+          trooperMovedLastExchange: {}, tankActsThisExchange: false,
+        },
+        momentum: 0, advance_rolls: 0, stealth: false, notes: '',
+        transitionFromSectorId: null, squadId: TEST_SQUAD,
+      },
+    })
+  }
+
+  it('nullifyTactic allows Sergeant to clear pendingTactic and spends 1 grit', () => {
+    setupTacticNullify()
+    useStore.getState().nullifyTactic('sgt')
+    const s = useStore.getState()
+    expect(s.troopers.find(t => t.id === 'sgt')!.grit).toBe(1)
+    expect(s.mission!.engagement!.pendingTactic).toBeNull()
+  })
+
+  it('nullifyTactic rejects non-Sergeant trooper (no grit spent, tactic stays)', () => {
+    setupTacticNullify()
+    useStore.getState().nullifyTactic('pvt')
+    const s = useStore.getState()
+    expect(s.troopers.find(t => t.id === 'pvt')!.grit).toBe(3)
+    expect(s.mission!.engagement!.pendingTactic).toBe('scatter')
+  })
+
+  it('nullifyTactic rejects when Sergeant is Suppressed', () => {
+    setupTacticNullify({ sergeantId: 'sgt', trooperOverrides: { suppressed: true } })
+    useStore.getState().nullifyTactic('sgt')
+    const s = useStore.getState()
+    expect(s.troopers.find(t => t.id === 'sgt')!.grit).toBe(2)
+    expect(s.mission!.engagement!.pendingTactic).toBe('scatter')
+  })
+
+  it('nullifyTactic rejects when Sergeant is Bleeding Out', () => {
+    setupTacticNullify({ sergeantId: 'sgt', trooperOverrides: { status: 'bleedingout' } })
+    useStore.getState().nullifyTactic('sgt')
+    const s = useStore.getState()
+    expect(s.troopers.find(t => t.id === 'sgt')!.grit).toBe(2)
+    expect(s.mission!.engagement!.pendingTactic).toBe('scatter')
+  })
+
+  it('nullifyTactic rejects when Sergeant has 0 grit', () => {
+    setupTacticNullify({ sergeantId: 'sgt', trooperOverrides: { grit: 0 } })
+    useStore.getState().nullifyTactic('sgt')
+    const s = useStore.getState()
+    expect(s.troopers.find(t => t.id === 'sgt')!.grit).toBe(0)
+    expect(s.mission!.engagement!.pendingTactic).toBe('scatter')
+  })
+
+  it('nullifyTactic rejects when squad has no sergeant assigned', () => {
+    setupTacticNullify({ sergeantId: null })
+    useStore.getState().nullifyTactic('sgt')
+    const s = useStore.getState()
+    expect(s.troopers.find(t => t.id === 'sgt')!.grit).toBe(2)
+    expect(s.mission!.engagement!.pendingTactic).toBe('scatter')
+  })
 })
 
 describe('mission progression', () => {

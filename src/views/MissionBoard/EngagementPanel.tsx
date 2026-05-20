@@ -36,6 +36,7 @@ export default function EngagementPanel() {
   const allTroopers = useStore(s => s.troopers)
   const endEngagement = useStore(s => s.endEngagement)
   const updatePressure = useStore(s => s.updatePressure)
+  const setExchangeStep = useStore(s => s.setExchangeStep)
   const addRoll = useStore(s => s.addRoll)
 
   const panelRef = useRef<HTMLDivElement>(null)
@@ -53,26 +54,51 @@ export default function EngagementPanel() {
   const pressureCap = activeSector.tl + 1
   const activeTroopers = allTroopers.filter(t => isDeployed(t, mission) && t.status !== 'dead')
 
+  // Step strip — which steps have produced data and can be navigated back to
+  const nonBO = activeTroopers.filter(t => t.status !== 'bleedingout')
+  const intentPassed = Object.keys(eng.intents).length > 0
+  const offensePassed = eng.offenseResult !== undefined
+  const defensePassed = nonBO.length > 0 && nonBO.every(t => eng.defenseResults[t.id] !== undefined)
+  const momentumPassed = eng.step === 'enemy_tactics'
+  const stepPassed: Record<EngagementState['step'], boolean> = {
+    intent: intentPassed,
+    offense: offensePassed,
+    defense: defensePassed,
+    momentum: momentumPassed,
+    enemy_tactics: false,
+  }
+
   return (
     <div ref={panelRef} className="flex flex-col gap-3">
-      {/* Header */}
-      <div className="bg-surface border border-border p-3">
+      {/* Header — sticky so it stays visible during long sub-step scroll */}
+      <div className="bg-surface border border-border p-3 sticky top-0 z-10">
         {/* Exchange + step strip row */}
         <div className="flex items-center gap-3 flex-wrap mb-2">
           <div className="lbl text-[10px]">
             EXCHANGE <span className="text-ink text-[13px]">{eng.exchangeNumber}</span>
           </div>
           <div className="flex gap-1 flex-wrap">
-            {STEPS.map(step => (
-              <span
-                key={step}
-                className={`text-[9px] px-1 border ${
-                  eng.step === step ? 'border-warn text-warn' : 'border-border text-muted'
-                }`}
-              >
-                {STEP_LABEL[step]}
-              </span>
-            ))}
+            {STEPS.map(step => {
+              const isCurrent = eng.step === step
+              const isPassed = stepPassed[step]
+              const isClickable = !isCurrent && isPassed
+              const cls = isCurrent
+                ? 'border-warn text-warn'
+                : isPassed
+                  ? 'border-ok/40 text-ok/70 hover:text-ok hover:border-ok cursor-pointer'
+                  : 'border-border text-muted opacity-50'
+              return (
+                <button
+                  key={step}
+                  onClick={() => { if (isClickable) setExchangeStep(step) }}
+                  disabled={!isClickable}
+                  className={`text-[9px] px-1 border ${cls}`}
+                  title={isClickable ? 'Go back to this step' : isCurrent ? 'Current step' : 'Not yet reached'}
+                >
+                  {STEP_LABEL[step]}
+                </button>
+              )
+            })}
           </div>
         </div>
 
@@ -87,18 +113,30 @@ export default function EngagementPanel() {
             </span>
           </div>
 
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-1.5">
             <span className="lbl text-[9px]">PRESSURE:</span>
             <button
               onClick={() => updatePressure(-1)}
               className="text-muted text-[10px] leading-none px-0.5"
+              aria-label="Decrease pressure"
             >◀</button>
-            <span className={`text-[11px] font-bold ${eng.pressure > 0 ? 'text-bad' : 'text-muted'}`}>
+            <div className="flex items-center gap-0.5" aria-label={`Pressure ${eng.pressure} of ${pressureCap}`}>
+              {Array.from({ length: pressureCap }, (_, i) => {
+                const filled = i < eng.pressure
+                const atCap = eng.pressure >= pressureCap
+                const fillClass = filled
+                  ? (atCap ? 'bg-bad border-bad' : 'bg-warn border-warn')
+                  : 'bg-transparent border-border'
+                return <span key={i} className={`w-2 h-2.5 border ${fillClass}`} />
+              })}
+            </div>
+            <span className={`text-[10px] font-bold ${eng.pressure >= pressureCap ? 'text-bad' : eng.pressure > 0 ? 'text-warn' : 'text-muted'}`}>
               {eng.pressure}/{pressureCap}
             </span>
             <button
               onClick={() => updatePressure(1)}
               className="text-muted text-[10px] leading-none px-0.5"
+              aria-label="Increase pressure"
             >▶</button>
           </div>
         </div>

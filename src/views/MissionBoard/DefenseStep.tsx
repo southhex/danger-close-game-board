@@ -110,6 +110,37 @@ export default function DefenseStep({ engagement, troopers, sector, addRoll }: P
     addRoll(diceRoll)
   }
 
+  function handleGritReroll(trooper: Trooper) {
+    if (trooper.grit <= 0) return
+    // SRD: spend 1 grit to reroll 1d6. Take the new result.
+    const r = rollDice(1, 6)[0]
+    setRolledResults(prev => ({ ...prev, [trooper.id]: r }))
+    setInputResults(prev => ({ ...prev, [trooper.id]: '' }))
+    updateTrooper(trooper.id, { grit: trooper.grit - 1 })
+    const diceRoll: DiceRoll = {
+      id: newId(),
+      timestamp: Date.now(),
+      label: `Exchange ${engagement.exchangeNumber} — Defense Reroll (${trooper.name})`,
+      dice: '1d6',
+      results: [r],
+      modifier: 0,
+      total: r,
+    }
+    addRoll(diceRoll)
+  }
+
+  function handleRollAll() {
+    // Roll dice for every non-BO, non-resolved trooper that doesn't already have
+    // a manually-entered or rolled result. Outcome resolution stays per-trooper.
+    for (const t of troopers) {
+      if (t.status === 'bleedingout') continue
+      if (engagement.defenseResults[t.id] !== undefined) continue
+      if (rolledResults[t.id] !== undefined) continue
+      if (inputResults[t.id] && inputResults[t.id] !== '') continue
+      handleRollInApp(t)
+    }
+  }
+
   function handleResolveSuppressed(trooper: Trooper, roll: number) {
     const result: DefenseResult = {
       roll,
@@ -148,9 +179,28 @@ export default function DefenseStep({ engagement, troopers, sector, addRoll }: P
       {/* Header */}
       <div className="px-3 py-2 border-b border-border flex items-center justify-between flex-wrap gap-2">
         <span className="lbl text-[10px]">EXCHANGE {engagement.exchangeNumber} — DEFENSE ROLLS</span>
-        {isFinalStand && (
-          <span className="text-[9px] px-1 border border-bad text-bad">FINAL STAND</span>
-        )}
+        <div className="flex items-center gap-2">
+          {isFinalStand && (
+            <span className="text-[9px] px-1 border border-bad text-bad">FINAL STAND</span>
+          )}
+          {(() => {
+            const eligible = troopers.filter(t =>
+              t.status !== 'bleedingout' &&
+              engagement.defenseResults[t.id] === undefined &&
+              rolledResults[t.id] === undefined &&
+              !(inputResults[t.id] && inputResults[t.id] !== '')
+            )
+            return (
+              <button
+                onClick={handleRollAll}
+                disabled={eligible.length === 0}
+                className="text-[10px] px-2 py-0.5 border border-warn text-warn disabled:opacity-40 disabled:cursor-not-allowed hover:bg-warn/10"
+              >
+                ROLL ALL ({eligible.length})
+              </button>
+            )
+          })()}
+        </div>
       </div>
 
       {/* Per-trooper cards */}
@@ -239,6 +289,18 @@ export default function DefenseStep({ engagement, troopers, sector, addRoll }: P
                     />
                     {activeResult !== null && (
                       <span className="text-[10px] text-ink">→ {activeResult}</span>
+                    )}
+                    {activeResult !== null && (
+                      trooper.grit > 0 ? (
+                        <button
+                          onClick={() => handleGritReroll(trooper)}
+                          className="text-[9px] text-warn border border-warn px-2 py-0.5 hover:bg-warn/10"
+                        >
+                          REROLL (1 GRIT — {trooper.grit} LEFT)
+                        </button>
+                      ) : (
+                        <span className="text-[9px] text-muted">no grit</span>
+                      )
                     )}
                   </div>
 

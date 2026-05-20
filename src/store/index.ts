@@ -1318,6 +1318,15 @@ export const useStore = create<Store>()(
 
     nullifyTactic: (trooperId) => {
       if (get().authStatus === 'authenticated' && !get().currentCampaignId) return
+      // SRD ch. 06 — only the active squad's Sergeant may nullify a Tactic,
+      // and only if not Bleeding Out / Suppressed / out of Grit.
+      const state = get()
+      if (!state.mission || !state.mission.engagement) return
+      const squad = state.squads.find(sq => sq.id === state.mission!.squadId)
+      if (!squad || squad.sergeantId !== trooperId) return
+      const sergeant = state.troopers.find(t => t.id === trooperId)
+      if (!sergeant) return
+      if (sergeant.status === 'bleedingout' || sergeant.suppressed || sergeant.grit <= 0) return
       set((s) => {
         if (!s.mission || !s.mission.engagement) return s
         return {

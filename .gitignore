@@ -41,3 +41,4 @@ EXAMPLE - dicebag/
 *.db-shm
 *.db-wal
 /data/
+.srd-cache/

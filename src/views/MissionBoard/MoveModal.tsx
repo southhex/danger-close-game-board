@@ -24,9 +24,9 @@ const MOVE_LABEL: Record<MoveType, string> = {
 
 export default function MoveModal({ trooper, sector, open, onClose, onConfirm }: Props) {
   const addRoll = useStore(s => s.addRoll)
+  const updateTrooper = useStore(s => s.updateTrooper)
   const [moveType, setMoveType] = useState<MoveType>('move_up')
   const [mobilityRoll, setMobilityRoll] = useState<number | null>(null)
-  const [rerolled, setRerolled] = useState(false)
   const [manualRoll, setManualRoll] = useState('')
 
   const effMob = effectiveMobility(trooper)
@@ -47,11 +47,11 @@ export default function MoveModal({ trooper, sector, open, onClose, onConfirm }:
   }
 
   function doGritReroll() {
-    if (trooper.grit <= 0 || rerolled) return
+    if (trooper.grit <= 0) return
     const result = rollDie(6)
     setMobilityRoll(result)
     setManualRoll(String(result))
-    setRerolled(true)
+    updateTrooper(trooper.id, { grit: trooper.grit - 1 })
     addRoll({
       id: newId(),
       timestamp: Date.now(),
@@ -101,7 +101,6 @@ export default function MoveModal({ trooper, sector, open, onClose, onConfirm }:
     // Reset local state
     setMobilityRoll(null)
     setManualRoll('')
-    setRerolled(false)
     setMoveType('move_up')
     onClose()
   }
@@ -110,7 +109,6 @@ export default function MoveModal({ trooper, sector, open, onClose, onConfirm }:
   function handleClose() {
     setMobilityRoll(null)
     setManualRoll('')
-    setRerolled(false)
     setMoveType('move_up')
     onClose()
   }
@@ -172,17 +170,18 @@ export default function MoveModal({ trooper, sector, open, onClose, onConfirm }:
             </div>
           )}
 
-          {/* Grit reroll */}
-          {mobilityRoll !== null && !passed && trooper.grit > 0 && !rerolled && (
-            <button
-              onClick={doGritReroll}
-              className="mt-2 text-[10px] text-warn border border-warn px-3 py-0.5 hover:bg-warn/10"
-            >
-              REROLL (SPEND 1 GRIT — {trooper.grit} remaining)
-            </button>
-          )}
-          {rerolled && (
-            <div className="text-[9px] text-muted mt-1">Grit reroll used.</div>
+          {/* Grit reroll — repeatable while grit > 0, per SRD */}
+          {mobilityRoll !== null && !passed && (
+            trooper.grit > 0 ? (
+              <button
+                onClick={doGritReroll}
+                className="mt-2 text-[10px] text-warn border border-warn px-3 py-0.5 hover:bg-warn/10"
+              >
+                REROLL (1 GRIT — {trooper.grit} LEFT)
+              </button>
+            ) : (
+              <div className="text-[9px] text-muted mt-1">No grit available to reroll.</div>
+            )
           )}
         </div>
 

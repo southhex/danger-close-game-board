@@ -2,6 +2,8 @@ import { useState } from 'react'
 import { rollDie } from '../../utils/dice'
 import { effectiveMobility, mobilityCheck, offposFromCheck, infiltrationPicks } from '../../utils/gameRules'
 import { ConfirmDialog } from '../../components'
+import { newId } from '../../utils/id'
+import { useStore } from '../../store'
 import type { Trooper, AdvanceResult, OffensivePosition } from '../../types'
 
 interface Check { roll: number | null; pass: boolean | null }
@@ -15,6 +17,9 @@ interface Props {
 }
 
 export default function MobilityCheckPhase({ troopers, result, stealthWasActive, onApply, onCancel }: Props) {
+  const updateTrooper = useStore(s => s.updateTrooper)
+  const addRoll = useStore(s => s.addRoll)
+
   const [checks, setChecks] = useState<Record<string, Check>>(
     () => Object.fromEntries(troopers.map(t => [t.id, { roll: null, pass: null }])),
   )
@@ -29,6 +34,23 @@ export default function MobilityCheckPhase({ troopers, result, stealthWasActive,
     const r = rollDie(6)
     const pass = mobilityCheck(effectiveMobility(t), r)
     setChecks(c => ({ ...c, [t.id]: { roll: r, pass } }))
+  }
+
+  const gritReroll = (t: Trooper) => {
+    if (t.grit <= 0) return
+    const r = rollDie(6)
+    const pass = mobilityCheck(effectiveMobility(t), r)
+    setChecks(c => ({ ...c, [t.id]: { roll: r, pass } }))
+    updateTrooper(t.id, { grit: t.grit - 1 })
+    addRoll({
+      id: newId(),
+      timestamp: Date.now(),
+      label: `${t.name} Mobility Reroll (Grit)`,
+      dice: '1d6',
+      results: [r],
+      modifier: 0,
+      total: r,
+    })
   }
 
   const apply = () => {
@@ -57,10 +79,19 @@ export default function MobilityCheckPhase({ troopers, result, stealthWasActive,
               {c.roll === null ? (
                 <button onClick={() => rollOne(t)} className="text-[10px] text-warn border border-warn px-2 py-1">ROLL 1D6</button>
               ) : (
-                <div className="text-[10px]">
-                  <span className="text-ink mr-2">{c.roll}</span>
+                <div className="text-[10px] flex items-center gap-2">
+                  <span className="text-ink">{c.roll}</span>
                   <span className={c.pass ? 'text-ok' : 'text-bad'}>{c.pass ? 'PASS' : 'FAIL'}</span>
-                  <button onClick={() => rollOne(t)} className="text-[9px] text-muted ml-2 underline">re-roll</button>
+                  {t.grit > 0 ? (
+                    <button
+                      onClick={() => gritReroll(t)}
+                      className="text-[9px] text-warn border border-warn px-1.5 py-0.5 hover:bg-warn/10"
+                    >
+                      REROLL (1 GRIT — {t.grit} LEFT)
+                    </button>
+                  ) : (
+                    <span className="text-[9px] text-muted">no grit</span>
+                  )}
                 </div>
               )}
             </div>
