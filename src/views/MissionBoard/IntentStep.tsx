@@ -71,7 +71,7 @@ function makeDefaultIntent(
       trooper,
       sector,
       lastMoved: engagement.trooperMovedLastExchange[trooper.id] ?? false,
-      atkPenalty: engagement.nextExchangeModifiers.atkPenalty,
+      atkPenalty: 0, // pool-level modifier — applied in OffenseStep, not per-trooper
     })
     base.atkContribution = atk.total
   }
@@ -207,7 +207,7 @@ export default function IntentStep({ engagement, troopers, sector, hardTargets }
                 trooper,
                 sector,
                 lastMoved: engagement.trooperMovedLastExchange[trooper.id] ?? false,
-                atkPenalty: engagement.nextExchangeModifiers.atkPenalty,
+                atkPenalty: 0, // pool-level modifier — shown separately in OffenseStep
               })
             : null
 

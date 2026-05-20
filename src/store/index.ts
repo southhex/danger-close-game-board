@@ -877,7 +877,8 @@ export const useStore = create<Store>()(
           ? Math.min(eng.pressure + 1, pressureCap)
           : eng.pressure
 
-        let nextMods = { ...eng.nextExchangeModifiers }
+        // Start fresh — each exchange's tactics set modifiers for the next exchange from scratch
+        let nextMods = { atkPenalty: 0, flankingDefPenalty: [] as string[], mustMove: [] as string[], flankedMustFallBack: [] as string[] }
         let nextTroopers = s.troopers
 
         if (tactic === 'reposition' && repositionTrooperId) {
@@ -960,7 +961,7 @@ export const useStore = create<Store>()(
               intents: {},
               offenseResult: null,
               defenseResults: {},
-              nextExchangeModifiers: { atkPenalty: 0, flankingDefPenalty: [], mustMove: [], flankedMustFallBack: [] },
+              nextExchangeModifiers: { atkPenalty: mods.atkPenalty, flankingDefPenalty: [], mustMove: mods.mustMove, flankedMustFallBack: [] },
               tankActsThisExchange: !eng.tankActsThisExchange,
               trooperMovedLastExchange: {},
               radioStrikeCountdown: newCountdown,

@@ -55,7 +55,10 @@ export default function OffenseStep({ engagement, troopers, sector, addRoll }: P
   const trooperDiedBonus = engagement.trooperDiedLastExchange ? 1 : 0
   const atkPenalty = engagement.nextExchangeModifiers.atkPenalty
   const pressurePenalty = engagement.pressure
-  const totalDice = Math.max(1, subtotal + momentumBonus + trooperDiedBonus - atkPenalty - pressurePenalty)
+  const rawPool = subtotal + momentumBonus + trooperDiedBonus - atkPenalty - pressurePenalty
+  // Pool ≤ 0 → disadvantage: roll 2d6 take lowest
+  const isDisadvantage = rawPool <= 0
+  const totalDice = isDisadvantage ? 2 : rawPool
 
   // Hard targets in use
   const targetedHTIds = new Set(
@@ -76,19 +79,19 @@ export default function OffenseStep({ engagement, troopers, sector, addRoll }: P
   function handleRollInApp() {
     const results = rollDice(totalDice, 6)
     setAllRolls(results)
-    const highest = Math.max(...results)
-    setRolledResult(highest)
+    const result = isDisadvantage ? Math.min(...results) : Math.max(...results)
+    setRolledResult(result)
     setInputResult('')
     setChosenOutcome(null)
 
     const diceRoll: DiceRoll = {
       id: newId(),
       timestamp: Date.now(),
-      label: `Exchange ${engagement.exchangeNumber} — Offense`,
+      label: `Exchange ${engagement.exchangeNumber} — Offense${isDisadvantage ? ' (DISADVANTAGE)' : ''}`,
       dice: `${totalDice}d6`,
       results,
       modifier: 0,
-      total: highest,
+      total: result,
     }
     addRoll(diceRoll)
   }
@@ -226,7 +229,10 @@ export default function OffenseStep({ engagement, troopers, sector, addRoll }: P
           )}
           <div className="flex justify-between border-t border-border pt-1 mt-0.5">
             <span className="lbl text-[9px]">ROLL</span>
-            <span className="text-ink font-bold text-[11px]">{totalDice}D6 — TAKE HIGHEST</span>
+            {isDisadvantage
+              ? <span className="text-bad font-bold text-[11px]">2D6 — TAKE LOWEST</span>
+              : <span className="text-ink font-bold text-[11px]">{totalDice}D6 — TAKE HIGHEST</span>
+            }
           </div>
         </div>
       </div>
