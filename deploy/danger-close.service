@@ -1,0 +1,24 @@
+[Unit]
+Description=Danger Close — digital play aid (Node + Hono)
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/root/git/danger-close-game-board
+EnvironmentFile=/root/git/danger-close-game-board/server/.env
+ExecStart=/usr/bin/node server/dist/index.js
+Restart=on-failure
+RestartSec=3
+StandardOutput=journal
+StandardError=journal
+
+# Optional hardening (uncomment after verifying the basics work):
+# NoNewPrivileges=true
+# PrivateTmp=true
+# ProtectSystem=strict
+# ReadWritePaths=/data
+# ProtectHome=true
+
+[Install]
+WantedBy=multi-user.target
