@@ -15,6 +15,7 @@ import type {
   InsertionType,
 } from '../../types'
 import SectorBlueprintCard from './SectorBlueprintCard'
+import MissionPreviewPanel from './MissionPreviewPanel'
 import DeployConfirmModal from '../MissionBoard/DeployConfirmModal'
 import { ConfirmDialog } from '../../components'
 
@@ -417,6 +418,17 @@ export default function MissionBuilder() {
           >DEPLOY NOW</button>
         </div>
       </div>
+
+      <MissionPreviewPanel
+        name={form.name}
+        difficulty={form.difficulty}
+        airspace={form.airspace}
+        objectiveCategory={form.objectiveCategory}
+        objectiveSubtype={form.objectiveSubtype}
+        insertion={form.insertion}
+        stealthStart={form.stealthStart}
+        sectors={form.sectors}
+      />
 
       <div className="grid md:grid-cols-2 gap-4">
         {/* Left: meta */}

@@ -1,5 +1,15 @@
-import type { MissionSector, SectorRole } from '../../types'
+import type { MissionSector, SectorRole, BoonType } from '../../types'
 import { rollDie } from '../../utils/dice'
+import { rollBoon } from '../../utils/gameRules'
+
+const BOON_OPTIONS: { value: BoonType; label: string }[] = [
+  { value: 'ammo_cache',         label: 'Ammo Cache'         },
+  { value: 'enemy_intel',        label: 'Enemy Intel'        },
+  { value: 'prepared_ground',    label: 'Prepared Ground'    },
+  { value: 'fallen_friendlies',  label: 'Fallen Friendlies'  },
+  { value: 'positions_revealed', label: 'Positions Revealed' },
+  { value: 'rookies',            label: 'Rookies'            },
+]
 
 const ROLE_OPTIONS: { value: SectorRole; label: string }[] = [
   { value: 'standard',  label: 'Standard'  },
@@ -203,16 +213,28 @@ export default function SectorBlueprintCard({ sector, index, total, expanded, on
         <div className="lbl text-[10px] mb-1">CONTENTS</div>
         <div className="flex gap-1 items-center">
           <div className={`flex gap-1 ${sector.rollContents ? 'opacity-40' : ''}`}>
-            {(['engagement', 'boon', 'empty'] as const).map(ct => (
-              <button
-                type="button"
-                key={ct}
-                onClick={() => onChange({ contentsType: ct, rollContents: false })}
-                className={`px-2 py-0.5 text-[10px] border font-mono uppercase ${
-                  contentsType === ct ? 'border-warn text-warn' : 'border-border text-muted'
-                }`}
-              >{ct}</button>
-            ))}
+            {(['engagement', 'boon', 'empty'] as const).map(ct => {
+              const isActive = !sector.rollContents && contentsType === ct
+              return (
+                <button
+                  type="button"
+                  key={ct}
+                  onClick={() => {
+                    const patch: Partial<MissionSector> = { contentsType: ct, rollContents: false }
+                    // When contents will not resolve to engagement, normalize TL so saved
+                    // blueprints don't carry stale values from a prior engagement setup.
+                    if (ct === 'empty' || ct === 'boon') {
+                      patch.tl = 2
+                      patch.rollTL = false
+                    }
+                    onChange(patch)
+                  }}
+                  className={`px-2 py-0.5 text-[10px] border font-mono uppercase ${
+                    isActive ? 'border-warn text-warn' : 'border-border text-muted'
+                  }`}
+                >{ct}</button>
+              )
+            })}
           </div>
           <RollToggle
             active={!!sector.rollContents}
@@ -221,6 +243,37 @@ export default function SectorBlueprintCard({ sector, index, total, expanded, on
           />
         </div>
       </div>
+
+      {/* Boon type row — only when contents is predetermined as boon */}
+      {!sector.rollContents && contentsType === 'boon' && (
+        <div>
+          <div className="lbl text-[10px] mb-1 flex items-center gap-2">
+            <span>BOON TYPE</span>
+            <button
+              type="button"
+              onClick={() => onChange({ boonType: rollBoon(rollDie(6)), rollBoonType: false })}
+              className="text-[10px] text-muted hover:text-warn font-mono"
+              aria-label="Roll boon type"
+              title="Roll boon type (1d6)"
+            >⬡</button>
+          </div>
+          <div className="flex gap-1 items-center">
+            <select
+              value={sector.boonType ?? 'ammo_cache'}
+              onChange={e => onChange({ boonType: e.target.value as BoonType, rollBoonType: false })}
+              disabled={!!sector.rollBoonType}
+              className={`flex-1 bg-surface border border-border text-ink font-mono text-xs px-2 py-1 ${sector.rollBoonType ? 'opacity-40' : ''}`}
+            >
+              {BOON_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+            </select>
+            <RollToggle
+              active={!!sector.rollBoonType}
+              onClick={() => onChange({ rollBoonType: !sector.rollBoonType })}
+              label="Roll boon type on entry"
+            />
+          </div>
+        </div>
+      )}
 
       {/* Cover row */}
       {showCoverSpace && (
@@ -243,7 +296,7 @@ export default function SectorBlueprintCard({ sector, index, total, expanded, on
                   key={v}
                   onClick={() => onChange({ cover: v, rollCover: false })}
                   className={`px-2 py-0.5 text-[10px] border font-mono ${
-                    sector.cover === v ? 'border-warn text-warn' : 'border-border text-muted'
+                    !sector.rollCover && sector.cover === v ? 'border-warn text-warn' : 'border-border text-muted'
                   }`}
                 >{v}</button>
               ))}
@@ -278,7 +331,7 @@ export default function SectorBlueprintCard({ sector, index, total, expanded, on
                   key={v}
                   onClick={() => onChange({ space: v, rollSpace: false })}
                   className={`px-2 py-0.5 text-[10px] border font-mono ${
-                    sector.space === v ? 'border-warn text-warn' : 'border-border text-muted'
+                    !sector.rollSpace && sector.space === v ? 'border-warn text-warn' : 'border-border text-muted'
                   }`}
                 >{v}</button>
               ))}
@@ -313,7 +366,7 @@ export default function SectorBlueprintCard({ sector, index, total, expanded, on
                   key={v}
                   onClick={() => onChange({ tl: v, rollTL: false })}
                   className={`px-2 py-0.5 text-[10px] border font-mono ${
-                    sector.tl === v ? 'border-warn text-warn' : 'border-border text-muted'
+                    !sector.rollTL && sector.tl === v ? 'border-warn text-warn' : 'border-border text-muted'
                   }`}
                 >{v}</button>
               ))}

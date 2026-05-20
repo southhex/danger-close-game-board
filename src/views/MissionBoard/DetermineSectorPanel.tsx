@@ -58,8 +58,11 @@ export default function DetermineSectorPanel() {
     if (ct === 'empty') {
       applySectorEmpty(id)
     } else if (ct === 'boon') {
-      const boonDie = rollDie(6)
-      const boonType = rollBoon(boonDie)
+      // Honor pre-set boon type from the blueprint when present and not flagged to roll.
+      const preset = activeSector.boonType
+      const boonType = preset && !activeSector.rollBoonType
+        ? preset
+        : rollBoon(rollDie(6))
       applySectorBoon(id, { type: boonType })
     } else {
       applySectorRoll(id, {
@@ -91,8 +94,11 @@ export default function DetermineSectorPanel() {
       return
     }
     if (sectContentsType === 'boon') {
-      const boonDie = rollDie(6)
-      const boonType = rollBoon(boonDie)
+      // Honor pre-set boon type from the blueprint when present and not flagged to roll.
+      const preset = activeSector!.boonType
+      const boonType = preset && !activeSector!.rollBoonType
+        ? preset
+        : rollBoon(rollDie(6))
       setRolled(r => ({ ...r, contentsType: 'boon', boonType }))
       setStep('boon')
       return

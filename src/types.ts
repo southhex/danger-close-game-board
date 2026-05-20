@@ -164,6 +164,10 @@ export interface MissionSector {
   rollContents?: boolean
   rollTL?:       boolean
   contentsType?: 'engagement' | 'boon' | 'empty'
+  // Pre-set boon type for predetermined boon sectors. Ignored when
+  // contentsType !== 'boon' or rollBoonType=true.
+  boonType?: BoonType
+  rollBoonType?: boolean
 }
 
 export type MissionPhase =
