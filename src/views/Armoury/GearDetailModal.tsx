@@ -12,8 +12,6 @@ interface Props {
   onClose:       () => void
 }
 
-const BUY_QTYS = [1, 3, 5]
-
 export default function GearDetailModal({ item, campaignGear, reqEnabled, reqPool, assignedCount, onClose }: Props) {
   const buyGearStock     = useStore(s => s.buyGearStock)
   const updateGearConfig = useStore(s => s.updateGearConfig)
@@ -21,10 +19,8 @@ export default function GearDetailModal({ item, campaignGear, reqEnabled, reqPoo
   const effectiveReq  = campaignGear?.customReq !== null && campaignGear?.customReq !== undefined
     ? campaignGear.customReq
     : item.reqcost
-  const effectiveName = campaignGear?.customName ?? item.name
 
   const stock   = campaignGear?.stock ?? 0
-  const tracked = reqEnabled && effectiveReq > 0
   const avail   = Math.max(0, stock - assignedCount)
 
   const isCustomised = !!(campaignGear?.customName || (campaignGear?.customReq !== null && campaignGear?.customReq !== undefined))

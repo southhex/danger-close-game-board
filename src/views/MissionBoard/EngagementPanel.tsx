@@ -48,7 +48,7 @@ export default function EngagementPanel() {
     panelRef.current?.scrollIntoView({ block: 'start', behavior: 'instant' })
   }, [eng?.step])
 
-  if (!mission || !mission.engagement) return null
+  if (!mission || !eng) return null
   const activeSector = mission.sectors.find(s => s.id === mission.activeSectorId) ?? mission.sectors[0]
   const pressureCap = activeSector.tl + 1
   const activeTroopers = allTroopers.filter(t => isDeployed(t, mission) && t.status !== 'dead')

@@ -72,7 +72,7 @@ interface Store extends AppState {
 
   // Legacy (kept for test compatibility)
   importState: (raw: unknown) => void
-  exportState: () => AppState
+  exportState: () => Pick<AppState, 'troopers' | 'mission' | 'diceHistory'>
 
   // Sector actions
   addSector: (sector: Omit<MissionSector, 'id' | 'status'>) => void
