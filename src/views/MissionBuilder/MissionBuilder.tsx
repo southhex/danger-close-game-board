@@ -16,12 +16,19 @@ import type {
 } from '../../types'
 import SectorBlueprintCard from './SectorBlueprintCard'
 import DeployConfirmModal from '../MissionBoard/DeployConfirmModal'
+import { ConfirmDialog } from '../../components'
 
 const DIFFICULTY_OPTIONS: { value: MissionDifficulty; label: string }[] = [
   { value: 'routine',   label: 'Routine'   },
   { value: 'hazardous', label: 'Hazardous' },
   { value: 'desperate', label: 'Desperate' },
 ]
+
+const DIFFICULTY_HINT: Record<MissionDifficulty, string> = {
+  routine:   '~3 sectors · rolled TL 1–3',
+  hazardous: '3–4 sectors · rolled TL 2–4',
+  desperate: '4–5 sectors · rolled TL 2–4 (high)',
+}
 
 const AIRSPACE_OPTIONS: { value: Airspace; label: string }[] = [
   { value: 'friendly',  label: 'Friendly'  },
@@ -185,6 +192,7 @@ export default function MissionBuilder() {
   const createMission    = useStore(s => s.createMission)
   const updateBlueprint  = useStore(s => s.updateMissionBlueprint)
   const setView          = useStore(s => s.setView)
+  const openMissionBuilder = useStore(s => s.openMissionBuilder)
   const { showToast }    = useToast()
 
   const campaign = campaigns.find(c => c.id === currentCampaignId) ?? null
@@ -196,46 +204,102 @@ export default function MissionBuilder() {
     editingMission ? fromMission(editingMission, campaign?.defaultAirspace) : defaultsFromCampaign(campaign?.defaultAirspace),
   )
   const [saving, setSaving] = useState(false)
-  const [deployModalOpen, setDeployModalOpen] = useState(false)
+  const [deployTarget, setDeployTarget] = useState<Mission | null>(null)
+  const [expandedSectorIds, setExpandedSectorIds] = useState<Set<string>>(() => new Set())
+  const [pendingDeleteIdx, setPendingDeleteIdx] = useState<number | null>(null)
+  const [dirty, setDirty] = useState(false)
+  const [cancelConfirmOpen, setCancelConfirmOpen] = useState(false)
 
   // Re-init when builder target changes
   useEffect(() => {
     setForm(editingMission ? fromMission(editingMission, campaign?.defaultAirspace) : defaultsFromCampaign(campaign?.defaultAirspace))
+    setExpandedSectorIds(new Set())
+    setDirty(false)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [builderMissionId])
+
+  function mutate(updater: (f: FormState) => FormState) {
+    setForm(updater)
+    setDirty(true)
+  }
+
+  function toggleSectorExpanded(id: string) {
+    setExpandedSectorIds(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
 
   const validation = useMemo(() => validate(form), [form])
 
   function patch(p: Partial<FormState>) {
-    setForm(f => ({ ...f, ...p }))
+    mutate(f => ({ ...f, ...p }))
   }
 
   function setObjectiveCategory(cat: MissionObjectiveCategory) {
     const firstSubtype = OBJECTIVE_SUBTYPES[cat][0].value
-    patch({ objectiveCategory: cat, objectiveSubtype: firstSubtype })
+    setObjectiveSubtype(firstSubtype, cat)
+  }
+
+  function setObjectiveSubtype(subtype: MissionObjectiveSubtype, cat?: MissionObjectiveCategory) {
+    const requiresEz = HIT_RUN_REQUIRES_EZ.includes(subtype)
+    mutate(f => ({
+      ...f,
+      objectiveCategory: cat ?? f.objectiveCategory,
+      objectiveSubtype: subtype,
+      insertion: requiresEz && f.insertion.ez === null
+        ? { ...f.insertion, ez: 'ground' }
+        : f.insertion,
+    }))
   }
 
   function setEzInsertion(value: 'none' | InsertionType) {
     patch({ insertion: { ...form.insertion, ez: value === 'none' ? null : value } })
   }
 
+  const ezRequired = HIT_RUN_REQUIRES_EZ.includes(form.objectiveSubtype)
+
   function updateSectorAt(idx: number, sectorPatch: Partial<MissionSector>) {
-    setForm(f => ({
+    mutate(f => ({
       ...f,
       sectors: f.sectors.map((s, i) => i === idx ? { ...s, ...sectorPatch } : s),
     }))
   }
 
   function addSector() {
-    setForm(f => ({ ...f, sectors: [...f.sectors, emptySector(f.defaultWeather)] }))
+    const fresh = emptySector(form.defaultWeather)
+    mutate(f => ({ ...f, sectors: [...f.sectors, fresh] }))
+    setExpandedSectorIds(prev => {
+      const next = new Set(prev)
+      next.add(fresh.id)
+      return next
+    })
   }
 
-  function deleteSector(idx: number) {
-    setForm(f => ({ ...f, sectors: f.sectors.filter((_, i) => i !== idx) }))
+  function isLastRequiredSector(idx: number): boolean {
+    const s = form.sectors[idx]
+    if (!s) return false
+    if (s.role === 'lz') return form.sectors.filter(x => x.role === 'lz').length === 1
+    if (s.role === 'objective') return form.sectors.filter(x => x.role === 'objective').length === 1
+    return false
+  }
+
+  function requestDeleteSector(idx: number) {
+    if (isLastRequiredSector(idx)) {
+      setPendingDeleteIdx(idx)
+    } else {
+      performDeleteSector(idx)
+    }
+  }
+
+  function performDeleteSector(idx: number) {
+    mutate(f => ({ ...f, sectors: f.sectors.filter((_, i) => i !== idx) }))
   }
 
   function moveSector(idx: number, delta: -1 | 1) {
-    setForm(f => {
+    mutate(f => {
       const target = idx + delta
       if (target < 0 || target >= f.sectors.length) return f
       const next = [...f.sectors]
@@ -245,36 +309,69 @@ export default function MissionBuilder() {
     })
   }
 
+  function buildPayload() {
+    return {
+      name: form.name.trim(),
+      description: form.description,
+      difficulty: form.difficulty,
+      airspace: form.airspace,
+      defaultWeather: form.defaultWeather,
+      objectiveCategory: form.objectiveCategory,
+      objectiveSubtype: form.objectiveSubtype,
+      insertion: form.insertion,
+      stealthStart: form.stealthStart,
+      sectors: form.sectors.map(s => ({ ...s, contentsState: deriveContentsState(s) })),
+      squadId: null,
+    }
+  }
+
+  async function persistBlueprint(): Promise<Mission | null> {
+    const payload = buildPayload()
+    if (editing && editingMission) {
+      await updateBlueprint({ ...editingMission, ...payload })
+      return { ...editingMission, ...payload }
+    }
+    return await createMission(payload)
+  }
+
   async function handleSave() {
     if (!validation.ok || saving) return
     setSaving(true)
     try {
-      const payload = {
-        name: form.name.trim(),
-        description: form.description,
-        difficulty: form.difficulty,
-        airspace: form.airspace,
-        defaultWeather: form.defaultWeather,
-        objectiveCategory: form.objectiveCategory,
-        objectiveSubtype: form.objectiveSubtype,
-        insertion: form.insertion,
-        stealthStart: form.stealthStart,
-        sectors: form.sectors.map(s => ({ ...s, contentsState: deriveContentsState(s) })),
-        squadId: null,
+      const mission = await persistBlueprint()
+      setDirty(false)
+      showToast(editing ? 'Blueprint saved' : 'Blueprint created')
+      // If we just created a new blueprint, switch the builder into edit mode
+      // for that mission so subsequent saves patch instead of duplicate-create.
+      if (!editing && mission) {
+        openMissionBuilder(mission.id)
       }
-      if (editing && editingMission) {
-        await updateBlueprint({ ...editingMission, ...payload })
-        showToast('Blueprint saved')
-      } else {
-        await createMission(payload)
-        showToast('Blueprint created')
-      }
-      setView('hq')
     } catch (err) {
       showToast(err instanceof Error ? err.message : 'Save failed')
     } finally {
       setSaving(false)
     }
+  }
+
+  async function handleDeployClick() {
+    if (!validation.ok || saving || isLocked) return
+    setSaving(true)
+    try {
+      const mission = await persistBlueprint()
+      if (mission) {
+        setDirty(false)
+        setDeployTarget(mission)
+      }
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'Save failed')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  function handleCancelClick() {
+    if (dirty) setCancelConfirmOpen(true)
+    else setView('hq')
   }
 
   return (
@@ -295,7 +392,7 @@ export default function MissionBuilder() {
         <div className="flex gap-2">
           <button
             type="button"
-            onClick={() => setView('hq')}
+            onClick={handleCancelClick}
             className="px-3 py-1.5 text-xs border border-border text-muted font-mono"
           >CANCEL</button>
           <button
@@ -306,9 +403,10 @@ export default function MissionBuilder() {
           >{editing ? 'SAVE BLUEPRINT' : 'CREATE BLUEPRINT'}</button>
           <button
             type="button"
-            onClick={() => setDeployModalOpen(true)}
-            disabled={!editing || !editingMission || !validation.ok}
+            onClick={handleDeployClick}
+            disabled={!validation.ok || saving || isLocked}
             className="px-3 py-1.5 text-xs border border-warn text-warn font-mono disabled:opacity-40 disabled:cursor-not-allowed"
+            title={editing ? 'Save and deploy' : 'Create blueprint and deploy'}
           >DEPLOY NOW</button>
         </div>
       </div>
@@ -335,6 +433,7 @@ export default function MissionBuilder() {
                 onClick={() => patch({ difficulty: rollDifficulty() })}
                 className="text-[10px] text-muted hover:text-warn font-mono"
                 aria-label="Roll difficulty"
+                title="Roll difficulty (1d6: 1–3 Routine · 4–5 Hazardous · 6 Desperate)"
               >⬡</button>
             </div>
             <div className="flex gap-1">
@@ -346,6 +445,9 @@ export default function MissionBuilder() {
                   className={`px-2 py-0.5 text-[10px] border font-mono flex-1 ${form.difficulty === o.value ? 'border-warn text-warn' : 'border-border text-muted'}`}
                 >{o.label}</button>
               ))}
+            </div>
+            <div className="text-[10px] text-subtle font-mono mt-1">
+              {DIFFICULTY_HINT[form.difficulty]}
             </div>
           </div>
 
@@ -386,7 +488,7 @@ export default function MissionBuilder() {
               </select>
               <select
                 value={form.objectiveSubtype}
-                onChange={e => patch({ objectiveSubtype: e.target.value as MissionObjectiveSubtype })}
+                onChange={e => setObjectiveSubtype(e.target.value as MissionObjectiveSubtype)}
                 className="flex-1 bg-bg border border-border text-ink font-mono text-xs px-2 py-1"
               >
                 {OBJECTIVE_SUBTYPES[form.objectiveCategory].map(o => (
@@ -423,15 +525,26 @@ export default function MissionBuilder() {
               </div>
               <div className="flex items-center gap-2">
                 <span className="text-[10px] text-muted w-6 font-mono">EZ</span>
-                {(['none', 'air', 'ground'] as const).map(t => (
-                  <button
-                    key={t}
-                    type="button"
-                    onClick={() => setEzInsertion(t)}
-                    className={`px-2 py-0.5 text-[10px] border font-mono flex-1 ${(t === 'none' ? form.insertion.ez === null : form.insertion.ez === t) ? 'border-warn text-warn' : 'border-border text-muted'}`}
-                  >{t.toUpperCase()}</button>
-                ))}
+                {(['none', 'air', 'ground'] as const).map(t => {
+                  const disabled = t === 'none' && ezRequired
+                  const active = t === 'none' ? form.insertion.ez === null : form.insertion.ez === t
+                  return (
+                    <button
+                      key={t}
+                      type="button"
+                      disabled={disabled}
+                      onClick={() => setEzInsertion(t)}
+                      title={disabled ? 'Hit & Run subtype requires an EZ' : undefined}
+                      className={`px-2 py-0.5 text-[10px] border font-mono flex-1 ${active ? 'border-warn text-warn' : 'border-border text-muted'} ${disabled ? 'opacity-40 cursor-not-allowed' : ''}`}
+                    >{t.toUpperCase()}</button>
+                  )
+                })}
               </div>
+              {ezRequired && (
+                <div className="text-[10px] text-subtle font-mono">
+                  EZ required for {form.objectiveSubtype.replace('_', ' ')}.
+                </div>
+              )}
             </div>
           </div>
 
@@ -463,9 +576,11 @@ export default function MissionBuilder() {
                 sector={s}
                 index={i}
                 total={form.sectors.length}
+                expanded={expandedSectorIds.has(s.id)}
+                onToggleExpanded={() => toggleSectorExpanded(s.id)}
                 onChange={p => updateSectorAt(i, p)}
                 onMove={d => moveSector(i, d)}
-                onDelete={() => deleteSector(i)}
+                onDelete={() => requestDeleteSector(i)}
               />
             ))}
             {form.sectors.length === 0 && (
@@ -487,12 +602,42 @@ export default function MissionBuilder() {
         </div>
       )}
 
-      {deployModalOpen && editingMission && (
+      {deployTarget && (
         <DeployConfirmModal
-          mission={editingMission}
-          onClose={() => setDeployModalOpen(false)}
+          mission={deployTarget}
+          onClose={() => setDeployTarget(null)}
         />
       )}
+
+      <ConfirmDialog
+        open={cancelConfirmOpen}
+        title="DISCARD CHANGES"
+        message="You have unsaved changes. Discard and return to HQ?"
+        tone="danger"
+        confirmLabel="DISCARD"
+        onCancel={() => setCancelConfirmOpen(false)}
+        onConfirm={() => {
+          setCancelConfirmOpen(false)
+          setView('hq')
+        }}
+      />
+
+      <ConfirmDialog
+        open={pendingDeleteIdx !== null}
+        title="DELETE REQUIRED SECTOR"
+        message={
+          pendingDeleteIdx !== null
+            ? `This is the only ${form.sectors[pendingDeleteIdx]?.role === 'lz' ? 'LZ' : 'Objective'} sector. Removing it will fail validation until you add another. Delete anyway?`
+            : ''
+        }
+        tone="danger"
+        confirmLabel="DELETE"
+        onCancel={() => setPendingDeleteIdx(null)}
+        onConfirm={() => {
+          if (pendingDeleteIdx !== null) performDeleteSector(pendingDeleteIdx)
+          setPendingDeleteIdx(null)
+        }}
+      />
     </div>
   )
 }

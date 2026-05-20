@@ -47,9 +47,24 @@ interface Props {
   sector: MissionSector
   index: number
   total: number
+  expanded: boolean
+  onToggleExpanded: () => void
   onChange: (patch: Partial<MissionSector>) => void
   onMove: (delta: -1 | 1) => void
   onDelete: () => void
+}
+
+const ROLE_LABEL: Record<SectorRole, string> = {
+  standard:  'Std',
+  lz:        'LZ',
+  ez:        'EZ',
+  objective: 'Obj',
+}
+
+const CONTENTS_LABEL: Record<'engagement' | 'boon' | 'empty', string> = {
+  engagement: 'Eng',
+  boon:       'Boon',
+  empty:      'Empty',
 }
 
 interface RollToggleProps {
@@ -63,24 +78,44 @@ function RollToggle({ active, onClick, label }: RollToggleProps) {
     <button
       type="button"
       onClick={onClick}
-      className={`px-1.5 py-0.5 text-[10px] border font-mono font-bold ${
+      className={`px-1.5 py-0.5 text-[10px] border font-mono ${
         active ? 'border-warn text-warn' : 'border-border text-muted'
       }`}
       aria-label={label}
-    >?</button>
+      title={label}
+    >ROLL</button>
   )
 }
 
-export default function SectorBlueprintCard({ sector, index, total, onChange, onMove, onDelete }: Props) {
+export default function SectorBlueprintCard({ sector, index, total, expanded, onToggleExpanded, onChange, onMove, onDelete }: Props) {
   const contentsType = sector.contentsType ?? 'engagement'
   const isEmpty = !sector.rollContents && contentsType === 'empty'
   const isTLVisible = sector.rollContents === true || (!sector.rollContents && contentsType === 'engagement')
   const showCoverSpace = !isEmpty
+  const role = sector.role ?? 'standard'
+
+  const coverSummary    = sector.rollCover    ? '?' : sector.cover
+  const spaceSummary    = sector.rollSpace    ? '?' : sector.space
+  const tlSummary       = sector.rollTL       ? '?' : sector.tl
+  const contentsSummary = sector.rollContents ? '?' : CONTENTS_LABEL[contentsType]
+
+  const roleBorderClass =
+    role === 'lz'        ? 'border-l-4 border-l-ok'    :
+    role === 'objective' ? 'border-l-4 border-l-warn'  :
+    role === 'ez'        ? 'border-l-4 border-l-muted' :
+    ''
 
   return (
-    <div className="bg-bg border border-border rounded-md p-3 flex flex-col gap-3">
+    <div className={`bg-bg border border-border rounded-md p-3 flex flex-col gap-3 ${roleBorderClass}`}>
       {/* Header row */}
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2 flex-wrap">
+        <button
+          type="button"
+          onClick={onToggleExpanded}
+          className="px-1 text-[10px] text-muted hover:text-ink font-mono leading-none w-4"
+          aria-label={expanded ? 'Collapse sector' : 'Expand sector'}
+          title={expanded ? 'Collapse' : 'Expand'}
+        >{expanded ? '▾' : '▸'}</button>
         <div className="flex flex-col -gap-px">
           <button
             type="button"
@@ -98,40 +133,59 @@ export default function SectorBlueprintCard({ sector, index, total, onChange, on
           >▼</button>
         </div>
         <div className="text-[10px] text-subtle font-mono w-6">{index + 1}.</div>
-        <input
-          type="text"
-          value={sector.name}
-          onChange={e => onChange({ name: e.target.value })}
-          placeholder="Sector name"
-          className="flex-1 bg-surface border border-border text-ink font-mono text-xs px-2 py-1 outline-none focus:border-warn"
-        />
-        <select
-          value={sector.role ?? 'standard'}
-          onChange={e => onChange({ role: e.target.value as SectorRole })}
-          className="bg-surface border border-border text-ink font-mono text-xs px-2 py-1"
-        >
-          {ROLE_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-        </select>
-        <button
-          type="button"
-          onClick={() => onChange({
-            cover:   rollCover(),
-            space:   rollSpace(),
-            weather: rollWeather(),
-            ...(isTLVisible ? { tl: rollTL() } : {}),
-          })}
-          className="px-2 py-0.5 text-[10px] border border-border text-muted hover:text-warn hover:border-warn font-mono"
-          aria-label="Roll all"
-          title="Roll all — cover, space, weather, TL (if visible)"
-        >⬡ ALL</button>
+        {expanded ? (
+          <>
+            <input
+              type="text"
+              value={sector.name}
+              onChange={e => onChange({ name: e.target.value })}
+              placeholder="Sector name"
+              className="flex-1 min-w-[120px] bg-surface border border-border text-ink font-mono text-xs px-2 py-1 outline-none focus:border-warn"
+            />
+            <select
+              value={sector.role ?? 'standard'}
+              onChange={e => onChange({ role: e.target.value as SectorRole })}
+              className="bg-surface border border-border text-ink font-mono text-xs px-2 py-1"
+            >
+              {ROLE_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+            </select>
+            <button
+              type="button"
+              onClick={() => onChange({
+                cover:   rollCover(),
+                space:   rollSpace(),
+                weather: rollWeather(),
+                ...(isTLVisible ? { tl: rollTL() } : {}),
+              })}
+              className="px-2 py-0.5 text-[10px] border border-border text-muted hover:text-warn hover:border-warn font-mono"
+              aria-label="Roll all"
+              title="Roll all — cover, space, weather, TL (if visible)"
+            >⬡ ALL</button>
+          </>
+        ) : (
+          <button
+            type="button"
+            onClick={onToggleExpanded}
+            className="flex-1 min-w-[120px] text-left flex items-center gap-2 text-[11px] font-mono text-ink hover:text-warn px-1 py-1 truncate"
+            title="Expand to edit"
+          >
+            <span className="text-warn">{ROLE_LABEL[role]}</span>
+            <span className="truncate">{sector.name || <span className="text-subtle">(unnamed)</span>}</span>
+            <span className="text-subtle ml-auto whitespace-nowrap">
+              {`Cov ${coverSummary} · Sp ${spaceSummary} · ${contentsSummary}${isTLVisible ? ` · TL ${tlSummary}` : ''} · Wx ${sector.weather >= 0 ? '+' : ''}${sector.weather}`}
+            </span>
+          </button>
+        )}
         <button
           type="button"
           onClick={onDelete}
-          className="px-2 py-1 text-[11px] border border-bad text-bad font-mono"
+          className="px-2 py-1 text-[11px] border border-bad text-bad font-mono ml-auto"
           aria-label="Delete sector"
+          title="Delete sector"
         >×</button>
       </div>
 
+      {expanded && <>
       {/* Description */}
       <div>
         <div className="lbl text-[10px] mb-1">DESCRIPTION</div>
@@ -178,6 +232,7 @@ export default function SectorBlueprintCard({ sector, index, total, onChange, on
               onClick={() => onChange({ cover: rollCover() })}
               className="text-[10px] text-muted hover:text-warn font-mono"
               aria-label="Roll cover"
+              title="Roll cover (1d6: 1=0 · 2–4=1 · 5–6=2)"
             >⬡</button>
           </div>
           <div className="flex gap-1 items-center">
@@ -212,6 +267,7 @@ export default function SectorBlueprintCard({ sector, index, total, onChange, on
               onClick={() => onChange({ space: rollSpace() })}
               className="text-[10px] text-muted hover:text-warn font-mono"
               aria-label="Roll space"
+              title="Roll space (1d6: 1=0 · 2–4=1 · 5–6=2)"
             >⬡</button>
           </div>
           <div className="flex gap-1 items-center">
@@ -246,6 +302,7 @@ export default function SectorBlueprintCard({ sector, index, total, onChange, on
               onClick={() => onChange({ tl: rollTL() })}
               className="text-[10px] text-muted hover:text-warn font-mono"
               aria-label="Roll TL"
+              title="Roll TL (1d6: 1–2=TL1 · 3–4=TL2 · 5=TL3 · 6=TL4)"
             >⬡</button>
           </div>
           <div className="flex gap-1 items-center">
@@ -279,6 +336,7 @@ export default function SectorBlueprintCard({ sector, index, total, onChange, on
             onClick={() => onChange({ weather: rollWeather() })}
             className="text-[10px] text-muted hover:text-warn font-mono"
             aria-label="Roll weather"
+            title="Roll weather (1d6: 1=-2 · 2=-1 · 3–5=0 · 6=+1)"
           >⬡</button>
         </div>
         <select
@@ -289,6 +347,7 @@ export default function SectorBlueprintCard({ sector, index, total, onChange, on
           {WEATHER_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
         </select>
       </div>
+      </>}
     </div>
   )
 }
