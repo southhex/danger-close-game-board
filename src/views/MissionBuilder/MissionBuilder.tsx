@@ -337,13 +337,14 @@ export default function MissionBuilder() {
   async function handleSave() {
     if (!validation.ok || saving) return
     setSaving(true)
+    const wasCreating = !editing
     try {
       const mission = await persistBlueprint()
       setDirty(false)
-      showToast(editing ? 'Blueprint saved' : 'Blueprint created')
+      showToast(wasCreating ? 'Blueprint created' : 'Blueprint saved')
       // If we just created a new blueprint, switch the builder into edit mode
       // for that mission so subsequent saves patch instead of duplicate-create.
-      if (!editing && mission) {
+      if (wasCreating && mission) {
         openMissionBuilder(mission.id)
       }
     } catch (err) {
@@ -356,10 +357,16 @@ export default function MissionBuilder() {
   async function handleDeployClick() {
     if (!validation.ok || saving || isLocked) return
     setSaving(true)
+    const wasCreating = !editing
     try {
       const mission = await persistBlueprint()
       if (mission) {
         setDirty(false)
+        // Same edit-mode flip as handleSave — without it, cancelling the deploy
+        // modal would leave the builder thinking it's still on a fresh blueprint.
+        if (wasCreating) {
+          openMissionBuilder(mission.id)
+        }
         setDeployTarget(mission)
       }
     } catch (err) {
