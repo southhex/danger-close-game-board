@@ -174,7 +174,7 @@ export default function OffenseStep({ engagement, troopers, sector, addRoll }: P
             {htRows.length > 0 && (
               <>
                 <tr>
-                  <td colSpan={3} className="pt-1 pb-0.5 text-[9px] text-warn lbl">HARD TARGET ATTACKS</td>
+                  <td colSpan={3} className="pt-1 pb-0.5 text-[9px] text-warn lbl">HARD TARGET POOL — separate roll, no momentum effect</td>
                 </tr>
                 {htRows.map(({ trooper, action, atk }) => {
                   const htId = engagement.intents[trooper.id]?.hardTargetId
@@ -192,7 +192,7 @@ export default function OffenseStep({ engagement, troopers, sector, addRoll }: P
           </tbody>
           <tfoot>
             <tr className="border-t border-border">
-              <td colSpan={2} className="text-muted text-[9px] pt-1 lbl">SUBTOTAL</td>
+              <td colSpan={2} className="text-muted text-[9px] pt-1 lbl">OFFENSE POOL</td>
               <td className="text-right text-ink font-bold pt-1">{subtotal}</td>
             </tr>
           </tfoot>

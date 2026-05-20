@@ -237,6 +237,11 @@ export async function completeMissionApi(
   }
 }
 
+export async function discardMissionApi(missionId: string): Promise<void> {
+  const res = await apiFetch(`/api/missions/${missionId}/discard`, { method: 'POST' })
+  await jsonOrThrow<{ ok: boolean }>(res, 'Discard mission failed')
+}
+
 export async function putMissionStateApi(
   missionId: string,
   data: MissionState,

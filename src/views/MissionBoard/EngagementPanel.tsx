@@ -1,3 +1,4 @@
+import { useRef, useEffect } from 'react'
 import { useStore } from '../../store'
 import HardTargetPanel from './HardTargetPanel'
 import SectorHeader from './SectorHeader'
@@ -37,15 +38,23 @@ export default function EngagementPanel() {
   const updatePressure = useStore(s => s.updatePressure)
   const addRoll = useStore(s => s.addRoll)
 
-  if (!mission || !mission.engagement) return null
+  const panelRef = useRef<HTMLDivElement>(null)
 
-  const eng = mission.engagement
+  const eng = mission?.engagement
+
+  // Scroll engagement panel into view at the top whenever the step changes
+  useEffect(() => {
+    if (!eng) return
+    panelRef.current?.scrollIntoView({ block: 'start', behavior: 'instant' })
+  }, [eng?.step])
+
+  if (!mission || !mission.engagement) return null
   const activeSector = mission.sectors.find(s => s.id === mission.activeSectorId) ?? mission.sectors[0]
   const pressureCap = activeSector.tl + 1
   const activeTroopers = allTroopers.filter(t => isDeployed(t, mission) && t.status !== 'dead')
 
   return (
-    <div className="flex flex-col gap-3">
+    <div ref={panelRef} className="flex flex-col gap-3">
       {/* Header */}
       <div className="bg-surface border border-border p-3">
         {/* Exchange + step strip row */}
@@ -95,12 +104,6 @@ export default function EngagementPanel() {
         </div>
       </div>
 
-      {/* Hard Targets */}
-      <HardTargetPanel hardTargets={eng.hardTargets} />
-
-      {/* Attached Forces */}
-      <AttachedForcePanel forces={eng.attachedForces} />
-
       {/* Active step sub-component */}
       <div>
         {eng.step === 'intent' && (
@@ -124,6 +127,12 @@ export default function EngagementPanel() {
           <EnemyTacticsStep engagement={eng} troopers={activeTroopers} sector={activeSector} addRoll={addRoll} />
         )}
       </div>
+
+      {/* Hard Targets */}
+      <HardTargetPanel hardTargets={eng.hardTargets} />
+
+      {/* Attached Forces */}
+      <AttachedForcePanel forces={eng.attachedForces} />
 
       {/* End engagement controls */}
       <div className="bg-surface border border-border p-3 flex gap-2 flex-wrap">

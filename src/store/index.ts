@@ -17,7 +17,7 @@ import {
   apiFetch, AuthError,
   createSquadApi, patchSquadApi, deleteSquadApi,
   createMissionApi, patchMissionBlueprintApi, deleteMissionApi,
-  deployMissionApi, completeMissionApi,
+  deployMissionApi, completeMissionApi, discardMissionApi,
   patchReqApi, buyGearApi, patchGearConfigApi, patchCampaignSettingsApi,
 } from '../api/client'
 import { fetchBootstrap, SetupRequiredError } from '../api/bootstrap'
@@ -140,6 +140,7 @@ interface Store extends AppState {
   deleteMission: (id: string) => Promise<void>
   deployMission: (missionId: string, squadId: string) => Promise<void>
   completeMission: (missionId: string, body: { fieldReport: string; outcome: 'victory' | 'defeat' | 'aborted' }) => Promise<void>
+  discardMission: () => Promise<void>
 
   setReq: (req: number) => Promise<void>
   buyGearStock: (gearName: string, qty: number, catalogueReq: number) => Promise<void>
@@ -1475,6 +1476,26 @@ export const useStore = create<Store>()(
         }
       })
       scheduleSync()
+    },
+
+    discardMission: async () => {
+      const campaignId = get().currentCampaignId
+      const campaign = get().campaigns.find(c => c.id === campaignId)
+      const missionId = campaign?.currentMissionId
+      if (!missionId) return
+      await discardMissionApi(missionId)
+      set(s => ({
+        missions: s.missions.map(m =>
+          m.id === missionId
+            ? { ...m, status: 'completed' as Mission['status'], outcome: 'aborted' as Mission['outcome'] }
+            : m
+        ),
+        campaigns: campaignId
+          ? s.campaigns.map(c => c.id === campaignId ? { ...c, currentMissionId: null } : c)
+          : s.campaigns,
+        mission: null,
+        currentView: 'hq' as View,
+      }))
     },
 
     setReq: async (req) => {

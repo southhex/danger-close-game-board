@@ -321,10 +321,41 @@ export function createMissionRoutes(db: Database = defaultDb): Hono {
       return c.json({ error: 'data object required' }, 400)
     }
 
+    const existingData = JSON.parse(existing.data) as Record<string, unknown>
+    existingData['state'] = body.data
     db.prepare<[string, string]>('UPDATE missions SET data = ? WHERE id = ?').run(
-      JSON.stringify(body.data),
+      JSON.stringify(existingData),
       id
     )
+
+    return c.json({ ok: true })
+  })
+
+  // POST /missions/:id/discard — abort a live mission, no REQ awarded
+  router.post('/missions/:id/discard', requireAuth, (c) => {
+    const id = c.req.param('id')
+
+    const existing = db
+      .prepare<[string], MissionRow>(
+        'SELECT id, campaign_id, status, data, completed_at, created_at FROM missions WHERE id = ?'
+      )
+      .get(id)
+    if (!existing) return c.json({ error: 'Mission not found' }, 404)
+    if (existing.status !== 'live') return c.json({ error: 'Only live missions can be discarded' }, 409)
+
+    const missionData = JSON.parse(existing.data) as Record<string, unknown>
+    missionData['outcome'] = 'aborted'
+    missionData['status'] = 'completed'
+    const completedAt = new Date().toISOString()
+
+    db.transaction(() => {
+      db.prepare<[string, string, string]>(
+        "UPDATE missions SET status = 'completed', data = ?, completed_at = ? WHERE id = ?"
+      ).run(JSON.stringify(missionData), completedAt, id)
+      db.prepare<[string]>(
+        'UPDATE campaigns SET current_mission_id = NULL WHERE id = ?'
+      ).run(existing.campaign_id)
+    })()
 
     return c.json({ ok: true })
   })

@@ -174,10 +174,10 @@ export default function IntentStep({ engagement, troopers, sector, hardTargets }
     setGearActionFor(null)
   }
 
-  // Total ATK from all FIRE intents
+  // Total ATK from FIRE intents not redirected to a hard target
   const totalAtk = troopers.reduce((sum, t) => {
     const intent = getIntent(t.id)
-    if (intent && intent.action === 'fire') return sum + intent.atkContribution
+    if (intent && intent.action === 'fire' && !intent.hardTargetId) return sum + intent.atkContribution
     return sum
   }, 0)
 
